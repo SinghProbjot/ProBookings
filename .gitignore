@@ -1,0 +1,18 @@
+#Ignora file di sistema operativi
+
+.DS_Store
+Thumbs.db
+
+#Ignora log di errore PHP locali
+
+error_log
+wp-content/debug.log
+
+#Ignora cartelle IDE
+
+.vscode/
+.idea/
+
+#Ignora cartelle Node (se mai userai npm in futuro)
+
+node_modules/

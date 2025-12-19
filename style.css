@@ -1,0 +1,76 @@
+.mbs-booking-container {
+    max-width: 700px;
+    margin: 30px auto;
+    font-family: 'Segoe UI', sans-serif;
+    background: #fff;
+    padding: 30px;
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+}
+
+.flatpickr-calendar {
+    box-shadow: none !important;
+    border: 1px solid #f0f0f0;
+    margin: 0 auto 20px auto;
+}
+
+/* Colori Calendario */
+.day-full-booked { background: #ffebee !important; color: #c62828 !important; pointer-events: none; }
+.day-morning-booked { background: linear-gradient(135deg, #ffebee 50%, #e8f5e9 50%) !important; }
+.day-afternoon-booked { background: linear-gradient(135deg, #e8f5e9 50%, #ffebee 50%) !important; }
+
+/* Form */
+#mbs-booking-form { display: none; border-top: 1px solid #eee; padding-top: 20px; }
+
+.mbs-user-data { display: flex; gap: 10px; margin-bottom: 20px; }
+.mbs-user-data input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; }
+
+.mbs-slots { display: flex; gap: 10px; margin-bottom: 20px; }
+.mbs-slot-option {
+    flex: 1; padding: 15px; border: 2px solid #eee; border-radius: 8px;
+    text-align: center; cursor: pointer; transition: 0.2s; position: relative;
+}
+.mbs-slot-option:hover { border-color: #b3e5fc; }
+.mbs-slot-option.selected { border-color: #0073aa; background: #e1f5fe; }
+.mbs-slot-option.disabled { opacity: 0.4; pointer-events: none; background: #f5f5f5; border-color: #eee; }
+
+.price-tag { display: block; margin-top: 5px; font-weight: bold; color: #2e7d32; }
+
+.mbs-btn {
+    width: 100%; padding: 15px; background: #0073aa; color: white;
+    border: none; font-size: 18px; border-radius: 8px; cursor: pointer;
+}
+.mbs-btn:hover { background: #005177; }
+
+.success-msg { background: #e8f5e9; color: #2e7d32; padding: 15px; border-radius: 6px; text-align: center; margin-top: 10px;}
+.error-msg { color: red; text-align: center; }
+
+.mbs-success-banner {
+    background: #d4edda;
+    color: #155724;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    text-align: center;
+    font-weight: bold;
+    border: 1px solid #c3e6cb;
+}
+
+/* ... (Assicurati di includere tutto il CSS della risposta precedente) ... */
+.mbs-wrapper { max-width: 900px; margin: 40px auto; font-family: sans-serif; background: #fff; box-shadow: 0 5px 20px rgba(0,0,0,0.1); border-radius: 10px; overflow: hidden; display: flex; flex-direction: column; }
+.mbs-header { background: #0073aa; color: white; padding: 20px; text-align: center; }
+.mbs-layout { display: flex; flex-wrap: wrap; }
+.mbs-col-calendar { padding: 20px; border-right: 1px solid #eee; display: flex; justify-content: center; }
+.mbs-col-form { padding: 20px; flex: 1; display: none; }
+.flatpickr-calendar { box-shadow: none !important; border: 1px solid #eee; }
+.day-full-booked { background: #ffebee !important; color: #c62828 !important; pointer-events: none; opacity: 0.6; }
+.day-morning-booked { background: linear-gradient(135deg, #ffcdd2 50%, #c8e6c9 50%) !important; }
+.day-afternoon-booked { background: linear-gradient(135deg, #c8e6c9 50%, #ffcdd2 50%) !important; }
+.mbs-slot-cards { display: flex; gap: 10px; margin: 15px 0; }
+.mbs-card { flex: 1; border: 2px solid #eee; padding: 10px; text-align: center; cursor: pointer; border-radius: 8px; }
+.mbs-card:hover { border-color: #b3e5fc; }
+.mbs-card.selected { border-color: #0073aa; background: #e1f5fe; }
+.mbs-card.disabled { opacity: 0.4; pointer-events: none; background: #f9f9f9; }
+.mbs-submit-btn { width: 100%; padding: 12px; background: #28a745; color: white; border: none; font-size: 16px; cursor: pointer; border-radius: 5px; }
+.mbs-input-group { margin-bottom: 10px; }
+.mbs-input-group input { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
