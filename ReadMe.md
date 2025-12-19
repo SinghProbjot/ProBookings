@@ -15,7 +15,7 @@ A custom WordPress plugin for managing boat and excursion bookings. It includes 
 1. Download the plugin folder.
 2. Upload it to the `/wp-content/plugins/` directory of your WordPress site.
 3. Activate the plugin from the WordPress Dashboard.
-4. Insert the shortcode `[mio_calendario]` into a page.
+4. Insert the shortcode `[pro_bookings]` into a page.
 5. Configure Stripe API keys in the plugin settings page.
 
 ## File Structure

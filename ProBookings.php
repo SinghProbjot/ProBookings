@@ -200,7 +200,7 @@ function mbs_shortcode() {
     <?php
     return ob_get_clean();
 }
-add_shortcode('mio_calendario', 'mbs_shortcode');
+add_shortcode('pro_bookings', 'mbs_shortcode');
 
 // ======================================================
 // 5. AJAX PAGAMENTO

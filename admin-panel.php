@@ -64,7 +64,7 @@ function mbs_adm_t($key) {
 }
 
 function mbs_admin_menu() {
-    add_menu_page('Booking', 'Booking PRO', 'manage_options', 'mbs-dashboard', 'mbs_page_dashboard', 'dashicons-calendar-alt', 26);
+    add_menu_page('Booking', 'ProBookings', 'manage_options', 'mbs-dashboard', 'mbs_page_dashboard', 'dashicons-calendar-alt', 26);
     add_submenu_page('mbs-dashboard', 'Settings', mbs_adm_t('settings'), 'manage_options', 'mbs-settings', 'mbs_page_settings');
 }
 add_action('admin_menu', 'mbs_admin_menu');
