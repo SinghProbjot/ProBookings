@@ -1,8 +1,11 @@
 jQuery(document).ready(function($) {
     let bookedDates = {};
-    const stripe = Stripe(mbs_vars.stripe_pk); // Inizializza Stripe con la chiave pubblica
+    const stripe = Stripe(mbs_vars.stripe_pk);
+    const lang = mbs_vars.lang; // 'it' or 'en'
+    
+    // Testi tradotti passati da PHP
+    const txt = mbs_vars.strings; 
 
-    // 1. CARICA DATE
     $.ajax({
         url: mbs_vars.ajax_url,
         data: { action: 'mbs_get_dates' },
@@ -13,10 +16,13 @@ jQuery(document).ready(function($) {
     });
 
     function initCalendar() {
+        // Flatpickr supporta la localizzazione. Se siamo in 'it', è già caricato lo script it.js
+        let localeOpt = (lang === 'it') ? "it" : "default";
+
         flatpickr("#mbs-datepicker", {
             inline: true,
             minDate: "today",
-            locale: "it",
+            locale: localeOpt,
             onDayCreate: function(dObj, dStr, fp, dayElem) {
                 let dateKey = formatDate(dayElem.dateObj);
                 if (bookedDates[dateKey]) {
@@ -28,7 +34,7 @@ jQuery(document).ready(function($) {
             onChange: function(sel, dateStr) {
                 if (bookedDates[dateStr] === 'full') {
                     $('#mbs-booking-form').hide();
-                    alert("Data non disponibile.");
+                    alert(txt.full_error);
                 } else {
                     showForm(dateStr, bookedDates[dateStr]);
                 }
@@ -55,7 +61,6 @@ jQuery(document).ready(function($) {
         $(`input[value="${val}"]`).prop('disabled', true).closest('.mbs-card').addClass('disabled');
     }
 
-    // UX Cards
     $('.mbs-card').click(function() {
         if($(this).hasClass('disabled')) return;
         $('.mbs-card').removeClass('selected');
@@ -63,31 +68,30 @@ jQuery(document).ready(function($) {
         $(this).find('input').prop('checked', true);
     });
 
-    // 2. CLICK PAGA E PRENOTA
     $('#mbs-form-action').submit(function(e) {
         e.preventDefault();
         
         let btn = $('.mbs-submit-btn');
-        btn.text('Reindirizzamento a Stripe...').prop('disabled', true);
+        btn.text(txt.redirect).prop('disabled', true);
 
         let data = {
             action: 'mbs_start_payment',
             security: mbs_vars.nonce,
+            lang: lang, // Importante: inviamo la lingua corrente al backend
             date: $('#mbs-date-display').text(),
             slot: $('input[name="slot"]:checked').val(),
             nome: $('input[name="nome"]').val(),
             email: $('input[name="email"]').val()
         };
 
-        if(!data.slot) { alert("Scegli uno orario!"); btn.prop('disabled',false).text('Paga'); return; }
+        if(!data.slot) { alert(txt.select_slot); btn.prop('disabled',false); return; }
 
         $.post(mbs_vars.ajax_url, data, function(res) {
             if(res.success) {
-                // REDIRECT A STRIPE
                 stripe.redirectToCheckout({ sessionId: res.data.id });
             } else {
-                alert('Errore: ' + res.data);
-                btn.prop('disabled',false).text('Riprova');
+                alert('Error: ' + res.data);
+                btn.prop('disabled',false);
             }
         });
     });

@@ -56,6 +56,24 @@
     border: 1px solid #c3e6cb;
 }
 
+.mbs-lang-switch {
+    text-align: right;
+    padding: 10px 20px;
+    background: #f8f9fa;
+    border-bottom: 1px solid #eee;
+}
+.mbs-lang-switch a {
+    text-decoration: none;
+    color: #999;
+    font-weight: bold;
+    margin: 0 5px;
+}
+.mbs-lang-switch a.active {
+    color: #333;
+    border-bottom: 2px solid #0073aa;
+}
+.mbs-lang-switch a:hover { color: #0073aa; }
+
 /* ... (Assicurati di includere tutto il CSS della risposta precedente) ... */
 .mbs-wrapper { max-width: 900px; margin: 40px auto; font-family: sans-serif; background: #fff; box-shadow: 0 5px 20px rgba(0,0,0,0.1); border-radius: 10px; overflow: hidden; display: flex; flex-direction: column; }
 .mbs-header { background: #0073aa; color: white; padding: 20px; text-align: center; }
