@@ -34,7 +34,7 @@ function mbs_t($key, $lang = null) {
     
     $dictionary = array(
         'it' => array(
-            'title' => '📅 Prenota la tua Avventura',
+            'title' => 'Prenota la tua Avventura',
             'subtitle' => 'Seleziona una data libera per iniziare.',
             'name_label' => 'Nome Completo',
             'email_label' => 'Email',
@@ -56,7 +56,7 @@ function mbs_t($key, $lang = null) {
             'booking_details' => 'Dettagli Prenotazione per il'
         ),
         'en' => array(
-            'title' => '📅 Book your Adventure',
+            'title' => 'Book your Adventure',
             'subtitle' => 'Select an available date to start.',
             'name_label' => 'Full Name',
             'email_label' => 'Email Address',
@@ -127,11 +127,15 @@ function mbs_scripts() {
         wp_enqueue_script('flatpickr-it', 'https://npmcdn.com/flatpickr/dist/l10n/it.js', array('flatpickr-js'), null, true);
     }
 
+    wp_enqueue_script('sweetalert2', 'https://cdn.jsdelivr.net/npm/sweetalert2@11', array(), null, true);
     wp_enqueue_script('stripe-js', 'https://js.stripe.com/v3/', array(), null, true);
     wp_enqueue_script('mbs-js', plugin_dir_url(__FILE__) . 'booking.js', array('flatpickr-js', 'jquery'), '5.1', true);
 
     $enable_payments = get_option('mbs_enable_payments', 1);
-    $primary_color = '#0073aa'; // Colore principale (puoi cambiarlo)
+    $theme = get_option('mbs_theme', 'default');
+    
+    // Variabili base
+    $primary_color = ($theme == 'sea') ? '#0088cc' : '#0073aa'; 
 
     wp_localize_script('mbs-js', 'mbs_vars', array(
         'ajax_url' => admin_url('admin-ajax.php'),
@@ -146,19 +150,69 @@ function mbs_scripts() {
         )
     ));
 
-    // CSS PERSONALIZZATO (PRO DESIGN)
-    $custom_css = "
+    // --- GESTIONE TEMI CSS ---
+    $css_base = "
         :root {
             --mbs-primary: {$primary_color};
             --mbs-bg: #f9f9f9;
             --mbs-text: #333;
             --mbs-radius: 12px;
-            --mbs-shadow: 0 10px 30px rgba(0,0,0,0.08);
+            --mbs-shadow: 0 15px 35px rgba(0,0,0,0.1);
         }
-        .mbs-wrapper { max-width: 1000px; margin: 40px auto; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: var(--mbs-text); }
-        .mbs-header { text-align: center; margin-bottom: 40px; transition: all 0.5s ease; }
-        .mbs-header h2 { font-size: 2.5rem; margin: 0 0 10px; color: #2c3e50; font-weight: 700; }
-        .mbs-header p { font-size: 1.1rem; color: #7f8c8d; }
+        .mbs-wrapper { 
+            max-width: 900px; margin: 40px auto; 
+            font-family: 'Poppins', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
+            color: var(--mbs-text);
+            background: #fff;
+            border-radius: var(--mbs-radius);
+            box-shadow: var(--mbs-shadow);
+            overflow: hidden; /* Importante per l'header image */
+        }
+    ";
+
+    if ($theme == 'sea') {
+        // TEMA MARE (SEA & BOATS)
+        $css_theme = "
+        .mbs-header { 
+            text-align: center; 
+            padding: 60px 20px 80px; /* Spazio extra sotto per l'onda */
+            background: linear-gradient(to bottom, rgba(0, 60, 120, 0.7), rgba(0, 136, 204, 0.4)), url('https://images.unsplash.com/photo-1566552881560-0be862a7c445?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80');
+            background-size: cover;
+            background-position: center;
+            color: #fff;
+            position: relative;
+            clip-path: ellipse(150% 100% at 50% 0%); /* Effetto Onda Curva */
+            margin-bottom: 30px;
+        }
+        .mbs-header h2 { 
+            font-size: 2.5rem; margin: 0 0 10px; color: #fff !important; 
+            font-weight: 700; text-shadow: 0 3px 6px rgba(0,0,0,0.3); 
+        }
+        .mbs-header p { 
+            font-size: 1.2rem; color: rgba(255,255,255,0.95) !important; 
+            font-weight: 500; text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+        }
+        .mbs-layout { padding: 0 30px 40px; }
+        ";
+    } else {
+        // TEMA DEFAULT (MINIMAL PULITO)
+        $css_theme = "
+        .mbs-header { 
+            text-align: center; padding: 40px 20px; 
+            background: #fff; border-bottom: 1px solid #eee;
+            margin-bottom: 30px;
+        }
+        .mbs-header h2 { 
+            font-size: 2rem; margin: 0 0 10px; color: #2c3e50; font-weight: 600; 
+        }
+        .mbs-header p { 
+            font-size: 1.1rem; color: #7f8c8d; 
+        }
+        .mbs-layout { padding: 0 30px 40px; }
+        ";
+    }
+
+    $css_common = "
         
         /* Layout Animato */
         .mbs-layout { display: flex; flex-direction: column; align-items: center; gap: 40px; transition: all 0.5s ease; }
@@ -171,7 +225,11 @@ function mbs_scripts() {
         .mbs-wrapper.step-2 .mbs-col-form { opacity: 1; transform: translateY(0); pointer-events: auto; display: block; }
         
         /* Flatpickr Customization */
-        .flatpickr-calendar { box-shadow: var(--mbs-shadow) !important; border: none !important; border-radius: var(--mbs-radius) !important; margin: 0 auto; }
+        .flatpickr-calendar { 
+            box-shadow: var(--mbs-shadow) !important; border: none !important; 
+            border-radius: var(--mbs-radius) !important; margin: 0 auto;
+            font-size: 1.1rem !important; /* Ingrandisce il calendario */
+        }
         .flatpickr-day.selected { background: var(--mbs-primary) !important; border-color: var(--mbs-primary) !important; }
 
         /* Cards Slot */
@@ -212,47 +270,7 @@ function mbs_scripts() {
             .mbs-wrapper.step-2 .mbs-col-calendar, .mbs-wrapper.step-2 .mbs-col-form { max-width: 100%; width: 100%; }
         }
     ";
-    wp_add_inline_style('mbs-style', $custom_css);
-
-    // JS LOGIC PER INTERFACCIA
-    $custom_js = "
-    jQuery(document).ready(function($){
-        // Attendi che Flatpickr sia inizializzato
-        setTimeout(function(){
-            var input = document.querySelector('#mbs-datepicker');
-            if(input && input._flatpickr) {
-                var fp = input._flatpickr;
-                var config = fp.config;
-                
-                // Salva il vecchio onChange se esiste
-                var oldOnChange = config.onChange;
-
-                // Distruggi e ricrea INLINE (Aperto subito)
-                fp.destroy();
-                
-                flatpickr('#mbs-datepicker', {
-                    ...config,
-                    inline: true,
-                    onChange: function(selectedDates, dateStr, instance) {
-                        // Chiama la logica originale (AJAX date etc)
-                        if(oldOnChange && oldOnChange.length > 0) {
-                            oldOnChange.forEach(fn => fn(selectedDates, dateStr, instance));
-                        }
-                        
-                        // Logica UI: Aggiungi classe al wrapper per animazione
-                        $('.mbs-wrapper').addClass('step-2');
-                        
-                        // Scroll smooth verso il form su mobile
-                        if(window.innerWidth < 768) {
-                            $('html, body').animate({ scrollTop: $('#mbs-booking-form').offset().top - 20 }, 500);
-                        }
-                    }
-                });
-            }
-        }, 500); // Piccolo delay per assicurarsi che booking.js abbia finito
-    });
-    ";
-    wp_add_inline_script('mbs-js', $custom_js);
+    wp_add_inline_style('mbs-style', $css_base . $css_theme . $css_common);
 }
 add_action('wp_enqueue_scripts', 'mbs_scripts');
 
@@ -278,11 +296,26 @@ function mbs_shortcode() {
     }
 
     $enable_payments = get_option('mbs_enable_payments', 1);
+    
+    // Genera link sicuri per la lingua (mantiene la pagina corrente)
+    $link_it = add_query_arg('lang', 'it', get_permalink());
+    $link_en = add_query_arg('lang', 'en', get_permalink());
+
+    // Recupera prezzi dalle opzioni
+    $p_morn = get_option('mbs_price_morning', 50);
+    $p_aft  = get_option('mbs_price_afternoon', 50);
+    $p_full = get_option('mbs_price_full', 90);
+
+    // Logica visualizzazione prezzi
+    $hide_prices_opt = get_option('mbs_hide_prices', 0);
+    // Mostra i prezzi SOLO SE: i pagamenti sono attivi OPPURE l'opzione "nascondi" è disattivata
+    $show_prices = ($enable_payments || !$hide_prices_opt);
+    $price_style = $show_prices ? '' : 'style="display:none;"';
     ?>
     <div class="mbs-wrapper" id="mbs-main-wrapper">
         <div class="mbs-lang-switch">
-            <a href="?lang=it" class="<?php echo ($lang=='it')?'active':''; ?>">🇮🇹 ITA</a> | 
-            <a href="?lang=en" class="<?php echo ($lang=='en')?'active':''; ?>">🇬🇧 ENG</a>
+            <a href="<?php echo esc_url($link_it); ?>" class="<?php echo ($lang=='it')?'active':''; ?>">🇮🇹 ITA</a> | 
+            <a href="<?php echo esc_url($link_en); ?>" class="<?php echo ($lang=='en')?'active':''; ?>">🇬🇧 ENG</a>
         </div>
 
         <div class="mbs-header">
@@ -306,7 +339,7 @@ function mbs_shortcode() {
                                 <div class="card-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"></circle><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path></svg></div>
                                 <div class="card-info"><strong><?php echo mbs_t('morning'); ?></strong><small>09:00 - 13:00</small></div>
                             </div>
-                            <div class="card-price">€50</div>
+                            <div class="card-price" <?php echo $price_style; ?>>€<?php echo $p_morn; ?></div>
                         </label>
                         <!-- POMERIGGIO -->
                         <label class="mbs-card slot-afternoon">
@@ -315,7 +348,7 @@ function mbs_shortcode() {
                                 <div class="card-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 18a5 5 0 0 0-10 0"></path><line x1="12" y1="9" x2="12" y2="2"></line><line x1="4.22" y1="10.22" x2="5.64" y2="11.64"></line><line x1="1" y1="18" x2="3" y2="18"></line><line x1="21" y1="18" x2="23" y2="18"></line><line x1="18.36" y1="11.64" x2="19.78" y2="10.22"></line><line x1="23" y1="22" x2="1" y2="22"></line><polyline points="16 5 12 9 8 5"></polyline></svg></div>
                                 <div class="card-info"><strong><?php echo mbs_t('afternoon'); ?></strong><small>14:00 - 18:00</small></div>
                             </div>
-                            <div class="card-price">€50</div>
+                            <div class="card-price" <?php echo $price_style; ?>>€<?php echo $p_aft; ?></div>
                         </label>
                         <!-- FULL DAY -->
                         <label class="mbs-card slot-full">
@@ -324,7 +357,7 @@ function mbs_shortcode() {
                                 <div class="card-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 22h20"></path><path d="M12 2v13"></path><path d="M5 15h14"></path><path d="M5 15a7 7 0 0 1 14 0"></path></svg></div>
                                 <div class="card-info"><strong><?php echo mbs_t('full'); ?></strong><small>09:00 - 18:00</small></div>
                             </div>
-                            <div class="card-price">€90</div>
+                            <div class="card-price" <?php echo $price_style; ?>>€<?php echo $p_full; ?></div>
                         </label>
                     </div>
                     <div id="mbs-feedback"></div>
@@ -356,7 +389,12 @@ function mbs_ajax_create_checkout_session() {
     $slot = sanitize_text_field($_POST['slot']);
     $nome = sanitize_text_field($_POST['nome']);
     $email = sanitize_email($_POST['email']);
-    $prezzo = ($slot === 'full') ? 90 : 50;
+    
+    // Calcolo prezzo dinamico
+    if ($slot === 'full') $prezzo = get_option('mbs_price_full', 90);
+    elseif ($slot === 'morning') $prezzo = get_option('mbs_price_morning', 50);
+    else $prezzo = get_option('mbs_price_afternoon', 50);
+
     $cancel_token = wp_generate_password(32, false);
 
     $wpdb->insert($table, array(
@@ -372,9 +410,9 @@ function mbs_ajax_create_checkout_session() {
     $order_id = $wpdb->insert_id;
 
     if (!$enable_payments) {
-        $wpdb->update($table, array('stato' => 'paid'), array('id' => $order_id));
+        $wpdb->update($table, array('stato' => 'confirmed'), array('id' => $order_id));
         mbs_send_notifications($order_id);
-        wp_send_json_success(array('redirect_url' => get_site_url() . '/?mbs_msg=success&lang=' . $lang));
+        wp_send_json_success(array('message' => mbs_t('success_msg', $lang)));
         return;
     }
 

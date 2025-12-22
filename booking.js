@@ -4,22 +4,28 @@ jQuery(document).ready(function($) {
     const lang = mbs_vars.lang; // 'it' or 'en'
     
     // Testi tradotti passati da PHP
-    const txt = mbs_vars.strings; 
+    const txt = mbs_vars.strings;
+    let fpInstance; // Istanza Flatpickr
 
-    $.ajax({
-        url: mbs_vars.ajax_url,
-        data: { action: 'mbs_get_dates' },
-        success: function(res) {
-            bookedDates = res;
-            initCalendar();
-        }
-    });
+    // Funzione per caricare/aggiornare le date
+    function loadDates() {
+        $.ajax({
+            url: mbs_vars.ajax_url,
+            data: { action: 'mbs_get_dates' },
+            success: function(res) {
+                bookedDates = res;
+                if (fpInstance) fpInstance.redraw(); // Ridisegna se esiste già
+                else initCalendar(); // Inizializza se è la prima volta
+            }
+        });
+    }
+    loadDates(); // Avvio immediato
 
     function initCalendar() {
         // Flatpickr supporta la localizzazione. Se siamo in 'it', è già caricato lo script it.js
         let localeOpt = (lang === 'it') ? "it" : "default";
 
-        flatpickr("#mbs-datepicker", {
+        fpInstance = flatpickr("#mbs-datepicker", {
             inline: true,
             minDate: "today",
             locale: localeOpt,
@@ -34,6 +40,7 @@ jQuery(document).ready(function($) {
             onChange: function(sel, dateStr) {
                 if (bookedDates[dateStr] === 'full') {
                     $('#mbs-booking-form').hide();
+                    $('.mbs-wrapper').removeClass('step-2'); // Torna al centro se pieno
                     alert(txt.full_error);
                 } else {
                     showForm(dateStr, bookedDates[dateStr]);
@@ -43,6 +50,14 @@ jQuery(document).ready(function($) {
     }
 
     function showForm(dateStr, status) {
+        // 1. Attiva l'animazione (sposta calendario a sx, mostra form a dx)
+        $('.mbs-wrapper').addClass('step-2');
+
+        // 2. Scroll automatico su mobile per far vedere il form
+        if(window.innerWidth < 768) {
+            $('html, body').animate({ scrollTop: $('#mbs-booking-form').offset().top - 20 }, 500);
+        }
+
         $('#mbs-booking-form').fadeIn();
         $('#mbs-date-display').text(dateStr);
         $('input[name="slot"]').prop('disabled', false).closest('.mbs-card').removeClass('disabled selected');
@@ -72,7 +87,9 @@ jQuery(document).ready(function($) {
         e.preventDefault();
         
         let btn = $('.mbs-submit-btn');
-        btn.text(txt.redirect).prop('disabled', true);
+        let originalText = btn.text();
+        let loadingText = (mbs_vars.enable_payments == '1') ? txt.redirect : 'Processing...';
+        btn.text(loadingText).prop('disabled', true);
 
         let data = {
             action: 'mbs_start_payment',
@@ -84,14 +101,34 @@ jQuery(document).ready(function($) {
             email: $('input[name="email"]').val()
         };
 
-        if(!data.slot) { alert(txt.select_slot); btn.prop('disabled',false); return; }
+        if(!data.slot) { alert(txt.select_slot); btn.text(originalText).prop('disabled',false); return; }
 
         $.post(mbs_vars.ajax_url, data, function(res) {
             if(res.success) {
-                stripe.redirectToCheckout({ sessionId: res.data.id });
+                if (res.data.redirect_url) {
+                    window.location.href = res.data.redirect_url;
+                } else {
+                    // SUCCESSO SENZA PAGAMENTO (Popup + Reset)
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Prenotazione Confermata!',
+                        text: res.data.message,
+                        confirmButtonColor: '#0073aa'
+                    }).then(() => {
+                        // 1. Chiudi form e torna al centro
+                        $('#mbs-booking-form').fadeOut();
+                        $('.mbs-wrapper').removeClass('step-2');
+                        // 2. Resetta campi
+                        $('#mbs-form-action')[0].reset();
+                        $('.mbs-card').removeClass('selected disabled');
+                        btn.text(originalText).prop('disabled', false);
+                        // 3. Aggiorna calendario (così la data appena presa risulta occupata)
+                        loadDates();
+                    });
+                }
             } else {
                 alert('Error: ' + res.data);
-                btn.prop('disabled',false);
+                btn.text(originalText).prop('disabled',false);
             }
         });
     });
