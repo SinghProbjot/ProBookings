@@ -1,32 +1,82 @@
 # ProBookings System
 
-A custom WordPress plugin for managing boat and excursion bookings. It includes an interactive calendar, time slot management (Morning/Afternoon/Full Day), and Stripe payment integration.
+![WordPress](https://img.shields.io/badge/WordPress-5.0%2B-blue.svg?style=for-the-badge&logo=wordpress)
+![PHP](https://img.shields.io/badge/PHP-7.4%2B-777BB4.svg?style=for-the-badge&logo=php&logoColor=white)
+![Version](https://img.shields.io/badge/Version-3.0-green.svg?style=for-the-badge)
+![License](https://img.shields.io/badge/License-GPLv2-orange.svg?style=for-the-badge)
+
+**ProBookings System** is a professional, high-performance WordPress plugin designed for managing bookings for boats, excursions, and daily rentals. It features a modern, responsive interface, Stripe payments, Google Calendar synchronization, and a dedicated frontend dashboard for staff.
+
+---
 
 ## Features
 
-- **Frontend:** Interactive calendar based on Flatpickr.
-- **Smart Slots:** Partial availability management (e.g., if the morning is booked, the afternoon remains bookable).
-- **Payments:** Native integration with Stripe Checkout.
-- **Admin Panel:** Dashboard to view bookings, payment status, and block dates (e.g., for holidays).
-- **Database:** Custom SQL tables for maximum performance.
+### Frontend Booking System
+- **Interactive Calendar:** Built with Flatpickr, featuring a color-coded legend (Available, Partially Booked, Full).
+- **Smart Slots:** Manages Morning, Afternoon, and Full Day slots. Automatically handles partial availability.
+- **Beautiful Themes:** Includes 5 preset themes (Default, Sea & Boats, Sunset, Forest, Elegant) to match your brand.
+- **Responsive Design:** Fully optimized for mobile and desktop.
+
+### Payments & Options
+- **Stripe Integration:** Secure credit card payments via Stripe Checkout.
+- **Pay on Site:** Option to allow customers to pay cash upon arrival.
+- **Dynamic Pricing:** Set different prices for Morning, Afternoon, and Full Day slots.
+
+### Powerful Admin Panel
+- **Dashboard:** View, edit, and delete bookings with a modern interface.
+- **Quick Contact:** Buttons to call or email customers directly from the panel.
+- **Google Calendar Sync:** Automatically adds confirmed bookings to your Google Calendar.
+- **Manual Bookings:** Staff can manually add bookings from the backend.
+- **Date Blocking:** Easily block specific dates (e.g., holidays or maintenance).
+
+### 📱 Staff Web App
+- **Frontend Dashboard:** A dedicated mobile-friendly dashboard for staff to manage bookings without accessing WP Admin.
+- **Shortcode:** `[mbs_dashboard]`
+
+---
 
 ## Installation
 
-1. Download the plugin folder.
-2. Upload it to the `/wp-content/plugins/` directory of your WordPress site.
-3. Activate the plugin from the WordPress Dashboard.
-4. Insert the shortcode `[pro_bookings]` into a page.
-5. Configure Stripe API keys in the plugin settings page.
+1. **Download:** Get the plugin `.zip` file.
+2. **Upload:** Go to WordPress Admin > Plugins > Add New > Upload Plugin.
+3. **Activate:** Activate **ProBookings System**.
+4. **Dependencies (Important):** If you are installing from source, run `composer install` inside the plugin folder to download the Google API client. If you installed a pre-packaged ZIP, this is already done.
+
+---
+
+## Configuration
+
+Go to **ProBookings > Settings** to configure:
+
+1. **Stripe Keys:** Enter your Publishable and Secret keys.
+2. **Google Calendar:** Enter Client ID and Secret to enable 1-way sync.
+3. **Themes:** Select the visual theme for the booking form.
+4. **Prices:** Set your rates for different time slots.
+
+---
+
+## Shortcodes
+
+| Shortcode | Description |
+| :--- | :--- |
+| `[pro_bookings]` | Displays the main booking form for customers. |
+| `[mbs_dashboard]` | Displays the management dashboard for staff (requires login). |
+
+---
 
 ## File Structure
 
-- `ProBookings.php`: Core logic, database setup, and API Hooks.
-- `admin-panel.php`: Administration interface.
-- `booking.js`: Frontend management, AJAX, and Stripe Redirect.
-- `style.css`: Custom styling.
+- `ProBookings.php`: Core plugin file, database initialization.
+- `admin-panel.php`: Backend administration UI.
+- `booking.js`: Frontend logic, AJAX handling.
+- `google-calendar-integration.php`: Logic for Google API sync.
+- `cancellation-logic.php`: Handles user cancellations and refunds.
+
+---
 
 ## Requirements
 
-- WordPress 5.0+
-- PHP 7.4+
-- Stripe Account (for payments)
+- WordPress 5.0 or higher
+- PHP 7.4 or higher
+- Stripe Account (optional, for payments)
+- Google Cloud Project (optional, for calendar sync)
