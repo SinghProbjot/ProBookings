@@ -38,15 +38,25 @@ function mbs_t($key, $lang = null) {
             'subtitle' => 'Seleziona una data libera per iniziare.',
             'name_label' => 'Nome Completo',
             'email_label' => 'Email',
+            'phone_label' => 'Telefono',
+            'privacy_label' => 'Accetto i Termini e la Privacy Policy',
             'slot_label' => 'Scegli Slot:',
             'morning' => 'Mattina',
             'afternoon' => 'Pomeriggio',
             'full' => 'Giornata Intera',
+            'legend_available' => 'Disponibile',
+            'legend_partially' => 'Parzialmente Occupato',
+            'legend_full' => 'Completo',
+            'partially_paid' => 'Parzialmente Pagato',
+            'pay_method_label' => 'Metodo di Pagamento:',
+            'pay_card' => 'Carta di Credito (Stripe)',
+            'pay_cash' => 'Paga in Loco',
             'pay_btn' => 'Paga e Prenota',
             'book_btn' => 'Prenota Ora',
             'success_msg' => '✅ Pagamento confermato! Controlla la tua email.',
             'cancel_msg' => '🗑️ Prenotazione cancellata e rimborsata.',
             'error_msg' => '⚠️ Errore o link scaduto.',
+            'privacy_error' => 'Devi accettare la privacy policy per procedere.',
             'full_error' => 'Ci dispiace, questa data è al completo.',
             'select_slot_error' => 'Seleziona un orario!',
             'redirect_msg' => 'Reindirizzamento al pagamento...',
@@ -60,15 +70,25 @@ function mbs_t($key, $lang = null) {
             'subtitle' => 'Select an available date to start.',
             'name_label' => 'Full Name',
             'email_label' => 'Email Address',
+            'phone_label' => 'Phone Number',
+            'privacy_label' => 'I accept Terms and Privacy Policy',
             'slot_label' => 'Choose Slot:',
             'morning' => 'Morning',
             'afternoon' => 'Afternoon',
             'full' => 'Full Day',
+            'legend_available' => 'Available',
+            'legend_partially' => 'Partially Booked',
+            'legend_full' => 'Fully Booked',
+            'partially_paid' => 'Partially Paid',
+            'pay_method_label' => 'Payment Method:',
+            'pay_card' => 'Credit Card (Stripe)',
+            'pay_cash' => 'Pay on Site',
             'pay_btn' => 'Pay & Book',
             'book_btn' => 'Book Now',
             'success_msg' => '✅ Payment confirmed! Check your email.',
             'cancel_msg' => '🗑️ Booking cancelled and refunded.',
             'error_msg' => '⚠️ Error or expired link.',
+            'privacy_error' => 'You must accept the privacy policy to proceed.',
             'full_error' => 'Sorry, this date is fully booked.',
             'select_slot_error' => 'Please select a time slot!',
             'redirect_msg' => 'Redirecting to payment...',
@@ -96,10 +116,12 @@ function mbs_crea_tabella() {
         slot varchar(20) NOT NULL, 
         nome_cliente varchar(100),
         email_cliente varchar(100),
+        telefono varchar(20),
         prezzo decimal(10,2) NOT NULL,
         stripe_session_id varchar(255),
         token_cancellazione varchar(64),
         lang varchar(5) DEFAULT 'it', 
+        metodo_pagamento varchar(50) DEFAULT 'stripe',
         stato varchar(20) DEFAULT 'pending' NOT NULL,
         data_creazione datetime DEFAULT CURRENT_TIMESTAMP NOT NULL,
         PRIMARY KEY  (id)
@@ -110,8 +132,15 @@ function mbs_crea_tabella() {
 
     $row = $wpdb->get_results( "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name = '$table_name' AND column_name = 'lang'" );
     if(empty($row)) $wpdb->query("ALTER TABLE $table_name ADD lang varchar(5) DEFAULT 'it'");
+
+    $row_tel = $wpdb->get_results( "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name = '$table_name' AND column_name = 'telefono'" );
+    if(empty($row_tel)) $wpdb->query("ALTER TABLE $table_name ADD telefono varchar(20)");
+
+    $row_metodo = $wpdb->get_results( "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name = '$table_name' AND column_name = 'metodo_pagamento'" );
+    if(empty($row_metodo)) $wpdb->query("ALTER TABLE $table_name ADD metodo_pagamento varchar(50) DEFAULT 'stripe'");
 }
 register_activation_hook( __FILE__, 'mbs_crea_tabella' );
+add_action( 'init', 'mbs_crea_tabella' ); // Forza l'aggiornamento DB se mancano colonne
 
 // ======================================================
 // 3. ASSETS & LOCALIZZAZIONE JS
@@ -132,6 +161,7 @@ function mbs_scripts() {
     wp_enqueue_script('mbs-js', plugin_dir_url(__FILE__) . 'booking.js', array('flatpickr-js', 'jquery'), '5.1', true);
 
     $enable_payments = get_option('mbs_enable_payments', 1);
+    $enable_pay_on_site = get_option('mbs_enable_pay_on_site', 0);
     $theme = get_option('mbs_theme', 'default');
     
     // Variabili base
@@ -143,9 +173,11 @@ function mbs_scripts() {
         'stripe_pk'=> get_option('mbs_stripe_pk') ?: 'pk_test_placeholder',
         'lang'     => $lang,
         'enable_payments' => $enable_payments,
+        'enable_pay_on_site' => $enable_pay_on_site,
         'strings'  => array(
             'full_error' => mbs_t('full_error', $lang),
             'select_slot' => mbs_t('select_slot_error', $lang),
+            'privacy_error' => mbs_t('privacy_error', $lang),
             'redirect' => mbs_t('redirect_msg', $lang)
         )
     ));
@@ -216,7 +248,13 @@ function mbs_scripts() {
         
         /* Layout Animato */
         .mbs-layout { display: flex; flex-direction: column; align-items: center; gap: 40px; transition: all 0.5s ease; }
-        .mbs-col-calendar { width: 100%; max-width: 400px; transition: all 0.5s ease; }
+        .mbs-col-calendar { 
+            width: 100%; max-width: 400px; transition: all 0.5s ease;
+            /* Forza layout verticale per mantenere la legenda sotto */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
         .mbs-col-form { width: 100%; max-width: 500px; opacity: 0; transform: translateY(20px); pointer-events: none; transition: all 0.5s ease; display: none; }
         
         /* Stato: Data Selezionata (Step 2) */
@@ -228,16 +266,45 @@ function mbs_scripts() {
         .flatpickr-calendar { 
             box-shadow: var(--mbs-shadow) !important; border: none !important; 
             border-radius: var(--mbs-radius) !important; margin: 0 auto;
-            font-size: 1.1rem !important; /* Ingrandisce il calendario */
+            font-size: 1.2rem !important; /* Ingrandisce il calendario */
         }
         .flatpickr-day.selected { background: var(--mbs-primary) !important; border-color: var(--mbs-primary) !important; }
 
+        /* Stili Giorni Calendario */
+        .flatpickr-day.day-full-booked {
+            background: #f44336 !important;
+            border-color: #d32f2f !important;
+            color: white !important;
+            cursor: not-allowed;
+        }
+        .flatpickr-day.day-morning-booked,
+        .flatpickr-day.day-afternoon-booked {
+            background: #fff59d !important;
+            border-color: #fbc02d !important;
+            color: #5f4300 !important;
+        }
+
+        /* Legenda Calendario */
+        .mbs-legend {
+            display: flex; justify-content: center; gap: 15px;
+            margin-top: 15px; padding: 10px;
+            background: #f8f9fa; border-radius: 8px; flex-wrap: wrap;
+        }
+        .legend-item { display: flex; align-items: center; font-size: 13px; color: #555; }
+        .legend-color {
+            width: 14px; height: 14px; border-radius: 50%;
+            margin-right: 7px; border: 1px solid rgba(0,0,0,0.1);
+        }
+        .legend-color.available { background: #fff; border: 2px solid #bbb; }
+        .legend-color.partially { background: #fff59d; }
+        .legend-color.full { background: #f44336; }
+
         /* Cards Slot */
-        .mbs-slot-cards { display: grid; grid-template-columns: 1fr; gap: 15px; margin-top: 10px; }
+        .mbs-slot-cards { display: grid; grid-template-columns: 1fr; gap: 10px; margin-top: 10px; }
         .mbs-card { 
             display: flex; align-items: center; justify-content: space-between; 
             background: #fff; border: 2px solid #eee; border-radius: var(--mbs-radius); 
-            padding: 15px 20px; cursor: pointer; transition: all 0.2s ease; position: relative; overflow: hidden;
+            padding: 10px 15px; cursor: pointer; transition: all 0.2s ease; position: relative; overflow: hidden;
         }
         .mbs-card:hover { border-color: var(--mbs-primary); transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
         .mbs-card input:checked + .card-content { color: var(--mbs-primary); }
@@ -245,17 +312,20 @@ function mbs_scripts() {
         /* Highlight Selected Card Border */
         .mbs-card:has(input:checked) { border-color: var(--mbs-primary); background: #f0f9ff; }
 
-        .card-content { display: flex; align-items: center; gap: 15px; }
-        .card-icon { width: 40px; height: 40px; background: #eef2f7; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #555; }
-        .card-info strong { display: block; font-size: 1.1rem; margin-bottom: 2px; }
-        .card-info small { color: #888; font-size: 0.9rem; }
-        .card-price { font-weight: bold; font-size: 1.2rem; color: #333; }
+        .card-content { display: flex; align-items: center; gap: 10px; }
+        .card-icon { width: 34px; height: 34px; background: #eef2f7; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #555; }
+        .card-info strong { display: block; font-size: 0.95rem; margin-bottom: 0; }
+        .card-info small { color: #888; font-size: 0.8rem; }
+        .card-price { font-weight: bold; font-size: 1rem; color: #333; }
         
         /* Form Inputs */
-        .mbs-input-group { margin-bottom: 15px; }
-        .mbs-input-group label { display: block; font-weight: 600; margin-bottom: 5px; color: #444; }
-        .mbs-input-group input { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 1rem; }
-        .mbs-input-group input:focus { border-color: var(--mbs-primary); outline: none; box-shadow: 0 0 0 3px rgba(0,115,170,0.1); }
+        .mbs-input-group { margin-bottom: 12px; }
+        .mbs-input-group label { display: block; font-weight: 600; margin-bottom: 4px; color: #555; font-size: 0.9rem; }
+        .mbs-input-group input { 
+            width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.95rem; 
+            transition: all 0.2s ease; background: #fff;
+        }
+        .mbs-input-group input:focus { border-color: var(--mbs-primary); outline: none; box-shadow: 0 0 0 3px rgba(0,115,170,0.1); background: #fdfdfd; }
         
         .mbs-submit-btn { 
             width: 100%; background: var(--mbs-primary); color: #fff; border: none; 
@@ -273,6 +343,17 @@ function mbs_scripts() {
     wp_add_inline_style('mbs-style', $css_base . $css_theme . $css_common);
 }
 add_action('wp_enqueue_scripts', 'mbs_scripts');
+
+function mbs_admin_scripts() {
+    $lang = get_option('mbs_admin_lang', 'it');
+    wp_enqueue_style('flatpickr-css', 'https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css');
+    wp_enqueue_script('flatpickr-js', 'https://cdn.jsdelivr.net/npm/flatpickr', array(), null, true);
+    
+    if($lang == 'it') {
+        wp_enqueue_script('flatpickr-it', 'https://npmcdn.com/flatpickr/dist/l10n/it.js', array('flatpickr-js'), null, true);
+    }
+}
+add_action('admin_enqueue_scripts', 'mbs_admin_scripts');
 
 // ======================================================
 // 4. SHORTCODE
@@ -296,6 +377,7 @@ function mbs_shortcode() {
     }
 
     $enable_payments = get_option('mbs_enable_payments', 1);
+    $enable_pay_on_site = get_option('mbs_enable_pay_on_site', 0);
     
     // Genera link sicuri per la lingua (mantiene la pagina corrente)
     $link_it = add_query_arg('lang', 'it', get_permalink());
@@ -323,12 +405,20 @@ function mbs_shortcode() {
             <p><?php echo mbs_t('subtitle'); ?></p>
         </div>
         <div class="mbs-layout">
-            <div class="mbs-col-calendar"><input type="text" id="mbs-datepicker" style="display:none;"></div>
+            <div class="mbs-col-calendar">
+                <input type="text" id="mbs-datepicker" style="display:none;">
+                <div class="mbs-legend">
+                    <div class="legend-item"><span class="legend-color available"></span> <?php echo mbs_t('legend_available'); ?></div>
+                    <div class="legend-item"><span class="legend-color partially"></span> <?php echo mbs_t('legend_partially'); ?></div>
+                    <div class="legend-item"><span class="legend-color full"></span> <?php echo mbs_t('legend_full'); ?></div>
+                </div>
+            </div>
             <div class="mbs-col-form" id="mbs-booking-form">
                 <h3><?php echo mbs_t('booking_details'); ?> <span id="mbs-date-display"></span></h3>
                 <form id="mbs-form-action">
                     <div class="mbs-input-group"><label><?php echo mbs_t('name_label'); ?></label><input type="text" name="nome" required></div>
                     <div class="mbs-input-group"><label><?php echo mbs_t('email_label'); ?></label><input type="email" name="email" required></div>
+                    <div class="mbs-input-group"><label><?php echo mbs_t('phone_label'); ?></label><input type="tel" name="phone" required></div>
                     
                     <label><?php echo mbs_t('slot_label'); ?></label>
                     <div class="mbs-slot-cards">
@@ -360,6 +450,19 @@ function mbs_shortcode() {
                             <div class="card-price" <?php echo $price_style; ?>>€<?php echo $p_full; ?></div>
                         </label>
                     </div>
+                    
+                    <div style="margin-top:15px; font-size:0.9rem;">
+                        <label><input type="checkbox" name="privacy" required> <?php echo mbs_t('privacy_label'); ?></label>
+                    </div>
+
+                    <?php if($enable_payments && $enable_pay_on_site): ?>
+                    <div style="margin-top:15px; background:#f0f0f0; padding:10px; border-radius:8px;">
+                        <label style="display:block; margin-bottom:5px; font-weight:bold;"><?php echo mbs_t('pay_method_label'); ?></label>
+                        <label style="margin-right:15px;"><input type="radio" name="payment_method" value="stripe" checked> <?php echo mbs_t('pay_card'); ?></label>
+                        <label><input type="radio" name="payment_method" value="cash"> <?php echo mbs_t('pay_cash'); ?></label>
+                    </div>
+                    <?php endif; ?>
+
                     <div id="mbs-feedback"></div>
                     <button type="submit" class="mbs-submit-btn"><?php echo $enable_payments ? mbs_t('pay_btn') : mbs_t('book_btn'); ?></button>
                 </form>
@@ -380,6 +483,7 @@ function mbs_ajax_create_checkout_session() {
     $table = $wpdb->prefix . 'mbs_prenotazioni';
     $enable_payments = get_option('mbs_enable_payments', 1);
     $sk = get_option('mbs_stripe_sk');
+    $payment_method = isset($_POST['payment_method']) ? sanitize_text_field($_POST['payment_method']) : 'stripe';
 
     if($enable_payments && !$sk) { wp_send_json_error('Stripe Keys Missing'); }
 
@@ -389,6 +493,7 @@ function mbs_ajax_create_checkout_session() {
     $slot = sanitize_text_field($_POST['slot']);
     $nome = sanitize_text_field($_POST['nome']);
     $email = sanitize_email($_POST['email']);
+    $phone = sanitize_text_field($_POST['phone']);
     
     // Calcolo prezzo dinamico
     if ($slot === 'full') $prezzo = get_option('mbs_price_full', 90);
@@ -402,14 +507,24 @@ function mbs_ajax_create_checkout_session() {
         'slot' => $slot,
         'nome_cliente' => $nome,
         'email_cliente' => $email,
+        'telefono' => $phone,
         'prezzo' => $prezzo,
         'token_cancellazione' => $cancel_token,
         'lang' => $lang,
+        'metodo_pagamento' => $payment_method,
         'stato' => 'pending'
     ));
     $order_id = $wpdb->insert_id;
 
     if (!$enable_payments) {
+        $wpdb->update($table, array('stato' => 'confirmed'), array('id' => $order_id));
+        mbs_send_notifications($order_id);
+        wp_send_json_success(array('message' => mbs_t('success_msg', $lang)));
+        return;
+    }
+
+    // Gestione Pagamento in Loco
+    if ($enable_payments && $payment_method === 'cash') {
         $wpdb->update($table, array('stato' => 'confirmed'), array('id' => $order_id));
         mbs_send_notifications($order_id);
         wp_send_json_success(array('message' => mbs_t('success_msg', $lang)));
@@ -472,6 +587,7 @@ function mbs_send_notifications($order_id) {
     $msg = "Hello " . $booking->nome_cliente . ",\n\n";
     $msg .= mbs_t('email_intro', $u_lang) . "\n";
     $msg .= "Date: " . $booking->data_prenotazione . "\n";
+    $msg .= "Phone: " . $booking->telefono . "\n";
     $msg .= "Slot: " . $booking->slot . "\n\n";
     $msg .= mbs_t('email_cancel_intro', $u_lang) . "\n";
     $msg .= $cancel_link;

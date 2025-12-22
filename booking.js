@@ -98,10 +98,14 @@ jQuery(document).ready(function($) {
             date: $('#mbs-date-display').text(),
             slot: $('input[name="slot"]:checked').val(),
             nome: $('input[name="nome"]').val(),
-            email: $('input[name="email"]').val()
+            email: $('input[name="email"]').val(),
+            phone: $('input[name="phone"]').val(),
+            privacy: $('input[name="privacy"]').is(':checked'),
+            payment_method: $('input[name="payment_method"]:checked').val()
         };
 
         if(!data.slot) { alert(txt.select_slot); btn.text(originalText).prop('disabled',false); return; }
+        if(!data.privacy) { alert(txt.privacy_error); btn.text(originalText).prop('disabled',false); return; }
 
         $.post(mbs_vars.ajax_url, data, function(res) {
             if(res.success) {
