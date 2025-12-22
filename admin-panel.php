@@ -30,7 +30,9 @@ function mbs_adm_t($key) {
             'paid' => 'PAGATO',
             'pending' => 'In attesa',
             'blocked' => 'BLOCCATO',
-            'confirm_del' => 'Vuoi davvero eliminare questa prenotazione?'
+            'confirm_del' => 'Vuoi davvero eliminare questa prenotazione?',
+            'enable_payments' => 'Abilita Pagamenti (Stripe)',
+            'enable_payments_desc' => 'Se disabilitato, le prenotazioni verranno confermate subito senza pagamento.'
         ],
         'en' => [
             'dash_title' => 'Booking Management',
@@ -57,7 +59,9 @@ function mbs_adm_t($key) {
             'paid' => 'PAID',
             'pending' => 'Pending',
             'blocked' => 'BLOCKED',
-            'confirm_del' => 'Are you sure you want to delete this booking?'
+            'confirm_del' => 'Are you sure you want to delete this booking?',
+            'enable_payments' => 'Enable Payments (Stripe)',
+            'enable_payments_desc' => 'If disabled, bookings will be confirmed immediately without payment.'
         ]
     ];
     return isset($dict[$lang][$key]) ? $dict[$lang][$key] : $key;
@@ -222,6 +226,7 @@ function mbs_page_settings() {
         update_option('mbs_stripe_pk', sanitize_text_field($_POST['mbs_stripe_pk']));
         update_option('mbs_stripe_sk', sanitize_text_field($_POST['mbs_stripe_sk']));
         update_option('mbs_admin_lang', sanitize_text_field($_POST['mbs_admin_lang']));
+        update_option('mbs_enable_payments', isset($_POST['mbs_enable_payments']) ? 1 : 0);
         echo '<div class="updated"><p>Saved!</p></div>';
     }
     $curr_lang = get_option('mbs_admin_lang', 'it');
@@ -237,6 +242,13 @@ function mbs_page_settings() {
                             <option value="it" <?php selected($curr_lang, 'it'); ?>>Italiano 🇮🇹</option>
                             <option value="en" <?php selected($curr_lang, 'en'); ?>>English 🇬🇧</option>
                         </select>
+                    </td>
+                </tr>
+                <tr>
+                    <th><?php echo mbs_adm_t('enable_payments'); ?></th>
+                    <td>
+                        <input type="checkbox" name="mbs_enable_payments" value="1" <?php checked(get_option('mbs_enable_payments', 1), 1); ?>>
+                        <p class="description"><?php echo mbs_adm_t('enable_payments_desc'); ?></p>
                     </td>
                 </tr>
                 <tr><th>Stripe Publishable Key</th><td><input type="text" name="mbs_stripe_pk" value="<?php echo get_option('mbs_stripe_pk'); ?>" class="regular-text"></td></tr>
