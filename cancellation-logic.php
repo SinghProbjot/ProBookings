@@ -57,7 +57,7 @@ add_action('init', 'mbs_handle_user_cancellation');
 function mbs_ajax_get_dates() {
     global $wpdb;
     $table = $wpdb->prefix . 'mbs_prenotazioni';
-    $res = $wpdb->get_results("SELECT data_prenotazione, slot, stato FROM $table WHERE stato IN ('paid', 'confirmed', 'blocked', 'pending')");
+    $res = $wpdb->get_results("SELECT data_prenotazione, slot, stato FROM $table WHERE stato IN ('paid', 'confirmed', 'blocked', 'pending', 'partially_paid')");
     
     $cal = array();
     foreach($res as $p) {

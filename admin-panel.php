@@ -135,16 +135,29 @@ function mbs_page_dashboard() {
         $nome = sanitize_text_field($_POST['nome']);
         $prezzo = floatval($_POST['prezzo']);
         
-        $wpdb->insert($table, array(
-            'data_prenotazione' => $date,
-            'slot' => $slot,
-            'nome_cliente' => $nome . ' (Manuale)',
-            'email_cliente' => '',
-            'prezzo' => $prezzo,
-            'stato' => 'paid',
-            'lang' => get_option('mbs_admin_lang', 'it')
+        // Controllo Conflitti
+        $check = $wpdb->get_var($wpdb->prepare(
+            "SELECT count(*) FROM $table 
+             WHERE data_prenotazione = %s 
+             AND stato IN ('paid', 'confirmed', 'pending', 'blocked', 'partially_paid')
+             AND (slot = 'full' OR slot = %s OR %s = 'full')",
+            $date, $slot, $slot
         ));
-        echo '<div class="updated"><p>'.mbs_adm_t('msg_manual_ok').'</p></div>';
+
+        if ($check > 0) {
+            echo '<div class="error"><p>'.mbs_adm_t('error_overlap').'</p></div>';
+        } else {
+            $wpdb->insert($table, array(
+                'data_prenotazione' => $date,
+                'slot' => $slot,
+                'nome_cliente' => $nome . ' (Manuale)',
+                'email_cliente' => '',
+                'prezzo' => $prezzo,
+                'stato' => 'paid',
+                'lang' => get_option('mbs_admin_lang', 'it')
+            ));
+            echo '<div class="updated"><p>'.mbs_adm_t('msg_manual_ok').'</p></div>';
+        }
     }
 
     // 2. Blocca Data
@@ -188,6 +201,13 @@ function mbs_page_dashboard() {
         #mbs-contact-modal p { margin: 5px 0; }
         #mbs-contact-modal strong { display: block; color: #555; }
         #mbs-contact-modal a { text-decoration: none; }
+        
+        /* Stili Calendario Admin */
+        .flatpickr-day.day-full-booked { background: #f44336 !important; border-color: #d32f2f !important; color: white !important; }
+        .flatpickr-day.day-morning-booked, 
+        .flatpickr-day.day-afternoon-booked { 
+            background: #fff59d !important; border-color: #fbc02d !important; color: #5f4300 !important; 
+        }
     </style>
 
     <div class="wrap">
@@ -232,7 +252,7 @@ function mbs_page_dashboard() {
                     <input type="hidden" name="mbs_action" value="manual_add">
                     <p>
                         <label><strong><?php echo mbs_adm_t('date'); ?>:</strong></label><br>
-                        <input type="date" name="date" required style="width:100%">
+                        <input type="text" id="manual-date" name="date" required style="width:100%" placeholder="YYYY-MM-DD">
                     </p>
                     <p>
                         <label><strong><?php echo mbs_adm_t('client'); ?>:</strong></label><br>
@@ -241,7 +261,7 @@ function mbs_page_dashboard() {
                     <div style="display:flex; gap:10px;">
                         <p style="flex:1">
                             <label><strong><?php echo mbs_adm_t('slot'); ?>:</strong></label><br>
-                            <select name="slot" style="width:100%">
+                            <select name="slot" id="manual-slot" style="width:100%">
                                 <option value="morning"><?php echo mbs_adm_t('morning'); ?></option>
                                 <option value="afternoon"><?php echo mbs_adm_t('afternoon'); ?></option>
                                 <option value="full"><?php echo mbs_adm_t('full'); ?></option>
@@ -348,7 +368,45 @@ function mbs_page_dashboard() {
         
         let bookedDates = {};
         let currentEditDate = '';
+        let currentEditSlot = '';
         let fpInstance;
+
+        // Funzione per gestire la disponibilità degli slot nel menu a tendina
+        function updateSlotOptions(dateStr, selectSelector, originalSlot) {
+            const status = bookedDates[dateStr];
+            const select = $(selectSelector);
+            select.find('option').prop('disabled', false); // Reset
+
+            if (!status) return;
+
+            // Logica per MODIFICA (Stessa data)
+            if (originalSlot && dateStr === currentEditDate) {
+                if (status === 'full') {
+                    if (originalSlot === 'morning') {
+                        select.find('option[value="afternoon"]').prop('disabled', true);
+                        select.find('option[value="full"]').prop('disabled', true);
+                    } else if (originalSlot === 'afternoon') {
+                        select.find('option[value="morning"]').prop('disabled', true);
+                        select.find('option[value="full"]').prop('disabled', true);
+                    }
+                }
+                return;
+            }
+
+            // Logica per NUOVA DATA / MANUALE
+            if (status === 'full') {
+                select.find('option').prop('disabled', true);
+                select.val('');
+            } else if (status === 'morning') {
+                select.find('option[value="morning"]').prop('disabled', true);
+                select.find('option[value="full"]').prop('disabled', true);
+                if (select.val() === 'morning' || select.val() === 'full') select.val('afternoon');
+            } else if (status === 'afternoon') {
+                select.find('option[value="afternoon"]').prop('disabled', true);
+                select.find('option[value="full"]').prop('disabled', true);
+                if (select.val() === 'afternoon' || select.val() === 'full') select.val('morning');
+            }
+        }
 
         // Scarica le date occupate e inizializza Flatpickr
         $.ajax({
@@ -356,6 +414,15 @@ function mbs_page_dashboard() {
             data: { action: 'mbs_get_dates' },
             success: function(res) {
                 bookedDates = res;
+                
+                const onDayCreateLogic = function(dObj, dStr, fp, dayElem) {
+                    let dateKey = flatpickr.formatDate(dayElem.dateObj, "Y-m-d");
+                    if (bookedDates[dateKey]) {
+                        if (bookedDates[dateKey] === 'full') dayElem.classList.add('day-full-booked');
+                        else if (bookedDates[dateKey] === 'morning' || bookedDates[dateKey] === 'afternoon') dayElem.classList.add('day-morning-booked');
+                    }
+                };
+
                 fpInstance = flatpickr("#edit-date", {
                     dateFormat: "Y-m-d",
                     locale: "<?php echo get_option('mbs_admin_lang', 'it'); ?>",
@@ -364,8 +431,28 @@ function mbs_page_dashboard() {
                             let dateStr = flatpickr.formatDate(date, "Y-m-d");
                             // Disabilita se è piena E non è la data che stiamo già modificando
                             return (bookedDates[dateStr] === 'full' && dateStr !== currentEditDate);
-                        }
-                    ]
+                        },
+                    ],
+                    onDayCreate: onDayCreateLogic,
+                    onChange: function(selectedDates, dateStr, instance) {
+                        updateSlotOptions(dateStr, '#edit-slot', currentEditSlot);
+                    }
+                });
+
+                // Init Manual Booking Flatpickr
+                flatpickr("#manual-date", {
+                    dateFormat: "Y-m-d",
+                    locale: "<?php echo get_option('mbs_admin_lang', 'it'); ?>",
+                    disable: [
+                        function(date) {
+                            let dateStr = flatpickr.formatDate(date, "Y-m-d");
+                            return (bookedDates[dateStr] === 'full');
+                        },
+                    ],
+                    onDayCreate: onDayCreateLogic,
+                    onChange: function(selectedDates, dateStr, instance) {
+                        updateSlotOptions(dateStr, '#manual-slot', null);
+                    }
                 });
             }
         });
@@ -399,6 +486,7 @@ function mbs_page_dashboard() {
             $('#edit-booking-id').val(bookingData.id);
             
             currentEditDate = bookingData.date;
+            currentEditSlot = bookingData.slot;
             if(fpInstance) {
                 fpInstance.setDate(currentEditDate);
                 fpInstance.redraw(); // Ridisegna per aggiornare le date disabilitate
@@ -411,6 +499,9 @@ function mbs_page_dashboard() {
             $('#edit-telefono').val(bookingData.telefono);
             $('#edit-email').val(bookingData.email);
             $('#edit-stato').val(bookingData.stato);
+            
+            // Aggiorna subito le opzioni slot per la data corrente
+            updateSlotOptions(currentEditDate, '#edit-slot', currentEditSlot);
             editModal.show();
         });
 
@@ -477,7 +568,7 @@ function mbs_ajax_update_booking() {
     $stato = sanitize_text_field($_POST['stato']);
 
     $check = $wpdb->get_var($wpdb->prepare(
-        "SELECT count(*) FROM $table WHERE data_prenotazione = %s AND id != %d AND stato IN ('paid', 'confirmed', 'pending', 'blocked') AND (slot = 'full' OR slot = %s OR %s = 'full')",
+        "SELECT count(*) FROM $table WHERE data_prenotazione = %s AND id != %d AND stato IN ('paid', 'confirmed', 'pending', 'blocked', 'partially_paid') AND (slot = 'full' OR slot = %s OR %s = 'full')",
         $date, $id, $slot, $slot
     ));
 

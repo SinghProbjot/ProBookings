@@ -655,11 +655,25 @@ function mbs_frontend_dashboard_shortcode() {
             $slot = sanitize_text_field($_POST['slot']);
             $nome = sanitize_text_field($_POST['nome']);
             $prezzo = floatval($_POST['prezzo']);
-            $wpdb->insert($table, array(
-                'data_prenotazione' => $date, 'slot' => $slot, 'nome_cliente' => $nome . ' (Manuale)',
-                'prezzo' => $prezzo, 'stato' => 'paid', 'lang' => 'it'
+            
+            // Controllo Conflitti (Aggiornato)
+            $check = $wpdb->get_var($wpdb->prepare(
+                "SELECT count(*) FROM $table 
+                 WHERE data_prenotazione = %s 
+                 AND stato IN ('paid', 'confirmed', 'pending', 'blocked', 'partially_paid')
+                 AND (slot = 'full' OR slot = %s OR %s = 'full')",
+                $date, $slot, $slot
             ));
-            $msg = '<div class="mbs-msg success">✅ Prenotazione aggiunta!</div>';
+
+            if ($check > 0) {
+                $msg = '<div class="mbs-msg error" style="background:#f8d7da; color:#721c24; border:1px solid #f5c6cb;">⚠️ Errore: Slot già occupato!</div>';
+            } else {
+                $wpdb->insert($table, array(
+                    'data_prenotazione' => $date, 'slot' => $slot, 'nome_cliente' => $nome . ' (Manuale)',
+                    'prezzo' => $prezzo, 'stato' => 'paid', 'lang' => 'it'
+                ));
+                $msg = '<div class="mbs-msg success">✅ Prenotazione aggiunta!</div>';
+            }
         }
         if ($_POST['mbs_fe_action'] == 'block_date') {
             $date = sanitize_text_field($_POST['block_date']);
@@ -711,6 +725,7 @@ function mbs_frontend_dashboard_shortcode() {
         .mbs-status { font-weight: bold; font-size: 0.8rem; text-transform: uppercase; }
         .mbs-status.paid { color: green; }
         .mbs-status.confirmed { color: #0073aa; }
+        .mbs-status.partially_paid { color: #d35400; }
         .mbs-status.pending { color: orange; }
         .mbs-status.blocked { color: red; }
         
