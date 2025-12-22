@@ -1,0 +1,52 @@
+L'integrazione permette una sincronizzazione a una via (WordPress → Google Calendar):
+
+Nuova prenotazione: Crea un evento nel tuo Google Calendar.
+Prenotazione cancellata: Rimuove l'evento dal tuo Google Calendar.
+Questo ti permette di avere una visione d'insieme di tutti gli impegni direttamente dal tuo telefono o computer, tramite Google Calendar.
+
+Importante: L'implementazione è complessa e richiede alcuni passaggi preliminari da parte tua. Ho preparato il plugin aggiungendo tutta la struttura necessaria.
+
+Prerequisiti: Cosa devi fare tu
+Per collegare il plugin a Google, devi prima creare un "progetto" sulla piattaforma per sviluppatori di Google e ottenere delle credenziali.
+
+Vai sulla Google Cloud Console: https://console.cloud.google.com/
+Crea un nuovo progetto (es. "Prenotazioni Barca").
+Nel menu di ricerca, cerca e abilita l'API "Google Calendar API".
+Vai su "Credenziali", clicca "Crea credenziali" e scegli "ID client OAuth".
+Seleziona "Applicazione web" come tipo di applicazione.
+Nella sezione "URI di reindirizzamento autorizzati", devi aggiungere un link specifico. Lo troverai nel pannello di amministrazione del plugin dopo aver applicato le modifiche qui sotto (sarà simile a https://tuosito.com/wp-admin/admin.php?page=mbs-settings).
+Dopo aver creato le credenziali, Google ti fornirà un ID Client e un Client Secret. Copiali, perché dovrai incollarli nelle impostazioni del plugin.
+
+1. Nuovo File: google-calendar-integration.php
+Questo file contiene il "cervello" dell'integrazione.
+
+2. Nota per la vendita (Distribuzione)
+
+1. Installare Composer (Solo una volta)
+Composer è uno strumento standard per chi lavora con PHP. Serve a scaricare automaticamente le librerie (come quella di Google) e tutte le loro dipendenze.
+
+Vai sul sito ufficiale: getcomposer.org/download/
+Scarica ed esegui Composer-Setup.exe (visto che sei su Windows).
+Installalo come un normale programma (avanti, avanti, fine).
+2. Scaricare la Libreria di Google (Dentro il tuo plugin)
+Ora dobbiamo dire a Composer di scaricare i file di Google dentro la cartella del tuo plugin.
+
+Apri la cartella del tuo plugin sul tuo computer.
+Percorso: C:\Users\singh.probjot\Documents\GitHub\ProBookings\ProBookings
+Fai click destro in uno spazio vuoto della cartella e seleziona "Apri nel Terminale" (o "Open in Terminal" / "PowerShell").
+Nella finestra blu o nera che si apre, incolla questo comando e premi Invio: 
+    composer require google/apiclient:^2.0
+Vedrai scorrere del testo. Composer sta scaricando i file da internet.
+Quando ha finito, guarda nella cartella del tuo plugin. Noterai una nuova cartella chiamata vendor.
+Dentro vendor ci sono migliaia di file: è tutta la logica di Google che serve al tuo plugin per funzionare.
+
+3. Creare lo ZIP (Il prodotto finale)
+Ora che hai la cartella vendor, il tuo plugin è completo.
+
+Assicurati di essere nella cartella che contiene ProBookings.php, admin-panel.php e la nuova cartella vendor.
+Torna indietro di un livello (nella cartella GitHub\ProBookings), in modo da vedere la cartella ProBookings dall'esterno.
+Fai click destro sulla cartella ProBookings.
+Seleziona Invia a -> Cartella compressa (o "Compress to ZIP file").
+Verrà creato un file ProBookings.zip.
+Questo file .zip è il tuo prodotto. Contiene il tuo codice + la libreria Google (vendor). Puoi darlo al tuo cliente o venderlo, e funzionerà su qualsiasi sito WordPress senza che loro debbano installare nulla.
+

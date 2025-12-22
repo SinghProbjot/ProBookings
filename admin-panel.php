@@ -52,7 +52,12 @@ function mbs_adm_t($key) {
             'edit_title' => '✏️ Modifica Prenotazione',
             'update_btn' => 'Aggiorna',
             'msg_updated' => '✅ Prenotazione aggiornata con successo!',
-            'error_overlap' => '⚠️ Errore: La data/slot selezionata è già occupata!'
+            'error_overlap' => '⚠️ Errore: La data/slot selezionata è già occupata!',
+            'gcal_title' => 'Integrazione Google Calendar',
+            'gcal_client_id' => 'Google Client ID',
+            'gcal_client_secret' => 'Google Client Secret',
+            'gcal_calendar_id' => 'ID Calendario (es. primary)',
+            'gcal_help' => 'Per configurare: Vai su Google Cloud Console, crea credenziali OAuth (Web App) e inserisci questo <strong>URI di Reindirizzamento</strong>:'
         ],
         'en' => [
             'dash_title' => 'Booking Management',
@@ -101,7 +106,12 @@ function mbs_adm_t($key) {
             'edit_title' => '✏️ Edit Booking',
             'update_btn' => 'Update',
             'msg_updated' => '✅ Booking updated successfully!',
-            'error_overlap' => '⚠️ Error: The selected date/slot is already booked!'
+            'error_overlap' => '⚠️ Error: The selected date/slot is already booked!',
+            'gcal_title' => 'Google Calendar Integration',
+            'gcal_client_id' => 'Google Client ID',
+            'gcal_client_secret' => 'Google Client Secret',
+            'gcal_calendar_id' => 'Calendar ID (e.g. primary)',
+            'gcal_help' => 'To configure: Go to Google Cloud Console, create OAuth credentials (Web App) and use this <strong>Redirect URI</strong>:'
         ]
     ];
     return isset($dict[$lang][$key]) ? $dict[$lang][$key] : $key;
@@ -523,6 +533,9 @@ function mbs_page_settings() {
         update_option('mbs_price_morning', floatval($_POST['mbs_price_morning']));
         update_option('mbs_price_afternoon', floatval($_POST['mbs_price_afternoon']));
         update_option('mbs_price_full', floatval($_POST['mbs_price_full']));
+        update_option('mbs_gcal_client_id', sanitize_text_field($_POST['mbs_gcal_client_id']));
+        update_option('mbs_gcal_client_secret', sanitize_text_field($_POST['mbs_gcal_client_secret']));
+        update_option('mbs_gcal_calendar_id', sanitize_text_field($_POST['mbs_gcal_calendar_id']));
         echo '<div class="updated"><p>Saved!</p></div>';
     }
     $curr_lang = get_option('mbs_admin_lang', 'it');
@@ -581,6 +594,27 @@ function mbs_page_settings() {
                 <tr><th><?php echo mbs_adm_t('morning'); ?> (€)</th><td><input type="number" step="0.01" name="mbs_price_morning" value="<?php echo get_option('mbs_price_morning', 50); ?>" class="small-text"></td></tr>
                 <tr><th><?php echo mbs_adm_t('afternoon'); ?> (€)</th><td><input type="number" step="0.01" name="mbs_price_afternoon" value="<?php echo get_option('mbs_price_afternoon', 50); ?>" class="small-text"></td></tr>
                 <tr><th><?php echo mbs_adm_t('full'); ?> (€)</th><td><input type="number" step="0.01" name="mbs_price_full" value="<?php echo get_option('mbs_price_full', 90); ?>" class="small-text"></td></tr>
+                
+                <tr><th colspan="2"><hr><h3><?php echo mbs_adm_t('gcal_title'); ?></h3>
+                    <div style="background:#fff; border-left:4px solid #0073aa; padding:10px; margin-bottom:15px;">
+                        <p><?php echo mbs_adm_t('gcal_help'); ?></p>
+                        <code style="background:#eee; padding:5px; display:block; margin-top:5px;"><?php echo admin_url('admin.php?page=mbs-settings'); ?></code>
+                    </div>
+                </th></tr>
+                <tr><th><?php echo mbs_adm_t('gcal_client_id'); ?></th><td><input type="text" name="mbs_gcal_client_id" value="<?php echo get_option('mbs_gcal_client_id'); ?>" class="regular-text"></td></tr>
+                <tr><th><?php echo mbs_adm_t('gcal_client_secret'); ?></th><td><input type="text" name="mbs_gcal_client_secret" value="<?php echo get_option('mbs_gcal_client_secret'); ?>" class="regular-text"></td></tr>
+                <tr><th><?php echo mbs_adm_t('gcal_calendar_id'); ?></th><td><input type="text" name="mbs_gcal_calendar_id" value="<?php echo get_option('mbs_gcal_calendar_id', 'primary'); ?>" class="regular-text"> <p class="description">Usa "primary" per il calendario principale.</p></td></tr>
+                <tr>
+                    <th>Autorizzazione</th>
+                    <td>
+                        <?php if(get_option('mbs_gcal_oauth_token')): ?>
+                            <span style="color:green; font-weight:bold;">✅ Connesso a Google Calendar</span>
+                            <a href="<?php echo admin_url('admin.php?page=mbs-settings&mbs_gcal_auth=1'); ?>" class="button button-secondary">Riconnetti</a>
+                        <?php else: ?>
+                            <a href="<?php echo admin_url('admin.php?page=mbs-settings&mbs_gcal_auth=1'); ?>" class="button button-primary">Connetti Google Account</a>
+                        <?php endif; ?>
+                    </td>
+                </tr>
             </table>
             <input type="hidden" name="mbs_save_settings" value="1">
             <?php submit_button(mbs_adm_t('save_settings')); ?>

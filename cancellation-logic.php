@@ -43,6 +43,7 @@ function mbs_handle_user_cancellation() {
             }
         }
 
+        mbs_google_calendar_delete_event($id); // Rimuovi da Google Calendar
         $wpdb->update($table, array('stato' => 'cancelled'), array('id' => $id));
         wp_mail(get_option('admin_email'), "Cancelled #$id", "User cancelled booking #$id");
         
