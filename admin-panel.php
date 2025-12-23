@@ -629,6 +629,21 @@ function mbs_page_settings() {
         update_option('mbs_gcal_calendar_id', sanitize_text_field($_POST['mbs_gcal_calendar_id']));
         echo '<div class="updated"><p>Saved!</p></div>';
     }
+
+    // Messaggi di ritorno da Google
+    if (isset($_GET['mbs_msg'])) {
+        if ($_GET['mbs_msg'] == 'gcal_success') echo '<div class="updated"><p>✅ Google Calendar Connesso con successo!</p></div>';
+        if ($_GET['mbs_msg'] == 'gcal_error') {
+            echo '<div class="error"><p>⚠️ Errore durante la connessione a Google.</p>';
+            if (isset($_GET['err'])) echo '<p><i>Dettaglio: '.esc_html($_GET['err']).'</i></p>';
+            echo '</div>';
+        }
+        if ($_GET['mbs_msg'] == 'gcal_no_lib') echo '<div class="error"><p>⚠️ <b>Errore Librerie:</b> Manca la cartella <code>vendor</code>. Hai eseguito <code>composer require google/apiclient:^2.0</code>?</p></div>';
+        if ($_GET['mbs_msg'] == 'gcal_no_creds') echo '<div class="error"><p>⚠️ <b>Errore Credenziali:</b> Client ID o Secret mancanti. Inseriscili e clicca su <b>"Salva Impostazioni"</b> PRIMA di cliccare su Connetti.</p></div>';
+        if ($_GET['mbs_msg'] == 'gcal_error_gen') echo '<div class="error"><p>⚠️ <b>Errore Generico:</b> Impossibile inizializzare il client Google.</p></div>';
+        if ($_GET['mbs_msg'] == 'gcal_access_denied') echo '<div class="error"><p>⛔ <b>Accesso Negato:</b> Hai annullato la connessione o Google ha bloccato l\'accesso (Verifica i "Test Users" nella console).</p></div>';
+    }
+
     $curr_lang = get_option('mbs_admin_lang', 'it');
     ?>
     <div class="wrap">
@@ -698,11 +713,15 @@ function mbs_page_settings() {
                 <tr>
                     <th>Autorizzazione</th>
                     <td>
-                        <?php if(get_option('mbs_gcal_oauth_token')): ?>
+                        <?php 
+                        $has_creds = get_option('mbs_gcal_client_id') && get_option('mbs_gcal_client_secret');
+                        if(get_option('mbs_gcal_token')): ?>
                             <span style="color:green; font-weight:bold;">✅ Connesso a Google Calendar</span>
                             <a href="<?php echo admin_url('admin.php?page=mbs-settings&mbs_gcal_auth=1'); ?>" class="button button-secondary">Riconnetti</a>
-                        <?php else: ?>
+                        <?php elseif($has_creds): ?>
                             <a href="<?php echo admin_url('admin.php?page=mbs-settings&mbs_gcal_auth=1'); ?>" class="button button-primary">Connetti Google Account</a>
+                        <?php else: ?>
+                            <p class="description" style="color:#d63638;">⚠️ Inserisci e salva <b>Client ID</b> e <b>Client Secret</b> prima di connettere.</p>
                         <?php endif; ?>
                     </td>
                 </tr>

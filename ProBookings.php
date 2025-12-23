@@ -16,6 +16,13 @@ require_once plugin_dir_path(__FILE__) . 'google-calendar-integration.php';
 // Carica librerie esterne (es. Google Client) se presenti (per distribuzione plugin)
 if (file_exists(plugin_dir_path(__FILE__) . 'vendor/autoload.php')) {
     require_once plugin_dir_path(__FILE__) . 'vendor/autoload.php';
+} else {
+    // Avviso Admin se mancano le librerie
+    add_action('admin_notices', function() {
+        if (current_user_can('manage_options')) {
+            echo '<div class="notice notice-error"><p>⚠️ <b>ProBookings:</b> Librerie Google mancanti. Esegui <code>composer require google/apiclient:^2.0</code> nella cartella del plugin o carica la cartella <code>vendor</code>.</p></div>';
+        }
+    });
 }
 
 // ======================================================
