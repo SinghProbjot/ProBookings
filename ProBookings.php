@@ -631,6 +631,45 @@ add_action('init', 'mbs_verify_payment');
 // ======================================================
 // 7. FRONTEND DASHBOARD (Mobile App View)
 // ======================================================
+
+// AJAX Handlers per la Dashboard Frontend
+add_action('wp_ajax_mbs_fe_delete_booking', 'mbs_fe_delete_booking_handler');
+function mbs_fe_delete_booking_handler() {
+    check_ajax_referer('mbs_fe_nonce', 'security');
+    if (!current_user_can('edit_posts')) wp_send_json_error('Permessi insufficienti');
+    
+    global $wpdb;
+    $table = $wpdb->prefix . 'mbs_prenotazioni';
+    $id = intval($_POST['id']);
+    
+    $wpdb->delete($table, array('id' => $id));
+    wp_send_json_success();
+}
+
+add_action('wp_ajax_mbs_fe_update_booking', 'mbs_fe_update_booking_handler');
+function mbs_fe_update_booking_handler() {
+    check_ajax_referer('mbs_fe_nonce', 'security');
+    if (!current_user_can('edit_posts')) wp_send_json_error('Permessi insufficienti');
+    
+    global $wpdb;
+    $table = $wpdb->prefix . 'mbs_prenotazioni';
+    
+    parse_str($_POST['form_data'], $form_data);
+    
+    $id = intval($form_data['booking_id']);
+    $data = array(
+        'data_prenotazione' => sanitize_text_field($form_data['date']),
+        'nome_cliente' => sanitize_text_field($form_data['nome']),
+        'telefono' => sanitize_text_field($form_data['telefono']),
+        'email_cliente' => sanitize_email($form_data['email']),
+        'slot' => sanitize_text_field($form_data['slot']),
+        'stato' => sanitize_text_field($form_data['stato']),
+    );
+    
+    $wpdb->update($table, $data, array('id' => $id));
+    wp_send_json_success();
+}
+
 function mbs_frontend_dashboard_shortcode() {
     // 1. Controllo Accesso
     if (!is_user_logged_in()) {
@@ -648,7 +687,7 @@ function mbs_frontend_dashboard_shortcode() {
     $table = $wpdb->prefix . 'mbs_prenotazioni';
     $msg = '';
 
-    // 2. Gestione Azioni (POST/GET)
+    // 2. Gestione Azioni POST (Solo Aggiunta Manuale / Blocco)
     if (isset($_POST['mbs_fe_action'])) {
         if ($_POST['mbs_fe_action'] == 'manual_add') {
             $date = sanitize_text_field($_POST['date']);
@@ -666,7 +705,7 @@ function mbs_frontend_dashboard_shortcode() {
             ));
 
             if ($check > 0) {
-                $msg = '<div class="mbs-msg error" style="background:#f8d7da; color:#721c24; border:1px solid #f5c6cb;">⚠️ Errore: Slot già occupato!</div>';
+                $msg = '<div class="mbs-msg error">⚠️ Errore: Slot già occupato!</div>';
             } else {
                 $wpdb->insert($table, array(
                     'data_prenotazione' => $date, 'slot' => $slot, 'nome_cliente' => $nome . ' (Manuale)',
@@ -684,164 +723,234 @@ function mbs_frontend_dashboard_shortcode() {
             $msg = '<div class="mbs-msg success">⛔ Data bloccata!</div>';
         }
     }
-    if (isset($_GET['del_id'])) {
-        $wpdb->delete($table, array('id' => intval($_GET['del_id'])));
-        $msg = '<div class="mbs-msg success">🗑️ Eliminata.</div>';
+
+    // 3. Recupero Dati per Calendario e Lista
+    // Recuperiamo TUTTE le prenotazioni future per il calendario
+    $all_bookings = $wpdb->get_results("SELECT id, data_prenotazione, slot, stato, nome_cliente FROM $table ORDER BY data_prenotazione DESC");
+    
+    // Prepariamo JSON per FullCalendar
+    $fc_events = array();
+    foreach($all_bookings as $b) {
+        $color = '#3788d8';
+        $title = $b->nome_cliente;
+        if($b->stato == 'blocked') { $color = '#d63638'; $title = '⛔ BLOCCATO'; }
+        elseif($b->stato == 'pending') { $color = '#f39c12'; $title = '⏳ ' . $b->nome_cliente; }
+        elseif($b->stato == 'paid' || $b->stato == 'confirmed') { $color = '#27ae60'; $title = '✅ ' . $b->nome_cliente; }
+
+        $start = $b->data_prenotazione;
+        $end = $b->data_prenotazione;
+        
+        if($b->slot == 'morning') {
+            $start .= 'T09:00:00';
+            $end .= 'T13:00:00';
+        } elseif($b->slot == 'afternoon') {
+            $start .= 'T14:00:00';
+            $end .= 'T18:00:00';
+        } else { // full
+            $start .= 'T09:00:00';
+            $end .= 'T18:00:00';
+        }
+
+        $fc_events[] = array(
+            'title' => $title,
+            'start' => $start,
+            'end' => $end,
+            'color' => $color
+        );
     }
 
-    // 3. Recupero Dati
+    // Paginazione per la Lista
     $items_per_page = 20;
     $page = isset( $_GET['db_page'] ) ? absint( $_GET['db_page'] ) : 1;
     $offset = ( $page * $items_per_page ) - $items_per_page;
+    
+    // Query per la lista paginata
+    $list_bookings = $wpdb->get_results("SELECT * FROM $table ORDER BY data_prenotazione DESC LIMIT $offset, $items_per_page");
     $total = $wpdb->get_var( "SELECT COUNT(id) FROM $table" );
     $total_pages = ceil( $total / $items_per_page );
-    $prenotazioni = $wpdb->get_results("SELECT * FROM $table ORDER BY data_prenotazione DESC LIMIT $offset, $items_per_page");
 
-    // 4. Output HTML (App Style)
     ob_start();
+    // Carico FullCalendar via CDN
     ?>
+    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js'></script>
     <style>
-        .mbs-app { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f4f6f8; padding: 20px; border-radius: 10px; max-width: 800px; margin: 0 auto; }
-        .mbs-app-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-        .mbs-app-header h2 { margin: 0; font-size: 1.5rem; color: #333; }
-        .mbs-logout { font-size: 0.9rem; color: #d63638; text-decoration: none; border: 1px solid #d63638; padding: 5px 10px; border-radius: 5px; }
+        /* Full Screen & Responsive */
+        .mbs-app { 
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
+            background: #f4f6f8; 
+            padding: 20px; 
+            border-radius: 0; 
+            width: 100%; 
+            max-width: 100%; 
+            box-sizing: border-box; 
+            min-height: 80vh;
+        }
         
-        .mbs-actions-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
-        .mbs-box { background: #fff; padding: 15px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
-        .mbs-box h3 { margin-top: 0; font-size: 1rem; color: #555; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 10px; }
-        .mbs-form-row { margin-bottom: 10px; }
-        .mbs-form-row label { display: block; font-size: 0.8rem; color: #777; margin-bottom: 3px; }
-        .mbs-form-row input, .mbs-form-row select { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 5px; }
-        .mbs-btn { width: 100%; padding: 10px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; color: #fff; }
+        /* Header & Controls */
+        .mbs-app-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
+        .mbs-app-header h2 { margin: 0; font-size: 1.8rem; color: #2c3e50; }
+        .mbs-controls { display: flex; gap: 10px; }
+        .mbs-view-btn { padding: 8px 16px; border: 1px solid #0073aa; background: #fff; color: #0073aa; border-radius: 20px; cursor: pointer; font-weight: 600; transition: all 0.2s; }
+        .mbs-view-btn.active { background: #0073aa; color: #fff; }
+        .mbs-logout { color: #d63638; text-decoration: none; font-weight: 500; }
+
+        /* Forms Grid */
+        .mbs-actions-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 30px; }
+        .mbs-box { background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+        .mbs-box h3 { margin-top: 0; font-size: 1.1rem; color: #444; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 15px; }
+        
+        .mbs-form-row { margin-bottom: 12px; }
+        .mbs-form-row input, .mbs-form-row select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
+        .mbs-btn { width: 100%; padding: 12px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; color: #fff; font-size: 1rem; transition: opacity 0.2s; }
+        .mbs-btn:hover { opacity: 0.9; }
         .mbs-btn.primary { background: #0073aa; }
         .mbs-btn.danger { background: #d63638; }
+
+        /* Views */
+        .mbs-view-section { display: none; animation: fadeIn 0.3s ease; }
+        .mbs-view-section.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
         
-        .mbs-list { list-style: none; padding: 0; margin: 0; }
-        .mbs-item { background: #fff; padding: 15px; border-radius: 10px; margin-bottom: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
-        .mbs-item-info { flex: 1; min-width: 200px; }
+        /* List View */
+        .mbs-list { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 15px; }
+        .mbs-item { background: #fff; padding: 15px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); border-left: 5px solid #ddd; position: relative; }
+        .mbs-item.paid { border-left-color: #27ae60; }
+        .mbs-item.pending { border-left-color: #f39c12; }
+        .mbs-item.blocked { border-left-color: #c0392b; }
+        
+        .mbs-item-header { display: flex; justify-content: space-between; margin-bottom: 8px; }
         .mbs-date { font-weight: bold; font-size: 1.1rem; color: #333; }
-        .mbs-slot { font-size: 0.9rem; color: #666; display: inline-block; background: #eee; padding: 2px 8px; border-radius: 4px; margin-left: 5px; }
-        .mbs-client { display: block; margin-top: 5px; color: #555; }
-        .mbs-status { font-weight: bold; font-size: 0.8rem; text-transform: uppercase; }
-        .mbs-status.paid { color: green; }
-        .mbs-status.confirmed { color: #0073aa; }
-        .mbs-status.partially_paid { color: #d35400; }
-        .mbs-status.pending { color: orange; }
-        .mbs-status.blocked { color: red; }
+        .mbs-slot-badge { font-size: 0.75rem; background: #eee; padding: 2px 8px; border-radius: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .mbs-client { display: block; font-size: 1rem; color: #555; margin-bottom: 10px; }
+        .mbs-actions { display: flex; gap: 8px; margin-top: 10px; }
+        .mbs-action-btn { flex: 1; padding: 8px; border: none; border-radius: 5px; cursor: pointer; color: #fff; font-size: 0.9rem; display: flex; align-items: center; justify-content: center; gap: 5px; }
+        .btn-edit { background: #f39c12; }
+        .btn-del { background: #e74c3c; }
+        .btn-call { background: #2ecc71; text-decoration: none; }
+
+        /* Calendar View */
+        #mbs-fe-calendar-wrapper { background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); text-align: center; }
+        .flatpickr-calendar.inline { margin: 0 auto; box-shadow: none; }
+        .day-marker { position: absolute; bottom: 2px; left: 0; right: 0; display: flex; justify-content: center; gap: 2px; }
+        .dot { width: 6px; height: 6px; border-radius: 50%; }
+        .dot.full { background: #e74c3c; }
+        .dot.partial { background: #f1c40f; }
         
-        .mbs-item-actions { display: flex; gap: 5px; }
-        .mbs-btn-sm { padding: 5px 10px; font-size: 0.8rem; border-radius: 4px; text-decoration: none; color: #fff; display: inline-block; cursor: pointer; border: none; }
-        .mbs-btn-edit { background: #f39c12; }
-        .mbs-btn-del { background: #d63638; }
-        .mbs-btn-contact { background: #27ae60; }
+        /* Modal */
+        .mbs-modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 9999; align-items: center; justify-content: center; backdrop-filter: blur(3px); }
+        .mbs-modal-overlay.active { display: flex; }
+        .mbs-modal { background: #fff; width: 90%; max-width: 500px; padding: 25px; border-radius: 15px; box-shadow: 0 20px 50px rgba(0,0,0,0.2); animation: slideUp 0.3s ease; }
+        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .mbs-modal h3 { margin-top: 0; color: #333; border-bottom: 1px solid #eee; padding-bottom: 15px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
+        .mbs-close-modal { cursor: pointer; font-size: 1.5rem; color: #999; }
+        .mbs-close-modal:hover { color: #333; }
 
-        .mbs-msg { padding: 10px; border-radius: 5px; margin-bottom: 20px; text-align: center; }
-        .mbs-msg.success { background: #d4edda; color: #155724; }
-
-        /* Modal Styles (Simplified) */
-        .mbs-fe-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center; }
-        .mbs-fe-modal.active { display: flex; }
-        .mbs-fe-modal-content { background: #fff; padding: 20px; border-radius: 10px; width: 90%; max-width: 500px; position: relative; }
-        .mbs-fe-close { position: absolute; top: 10px; right: 15px; font-size: 20px; cursor: pointer; }
-
-        @media (max-width: 600px) {
-            .mbs-actions-grid { grid-template-columns: 1fr; }
-        }
+        .mbs-msg { padding: 15px; border-radius: 8px; margin-bottom: 20px; text-align: center; font-weight: 500; }
+        .mbs-msg.success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .mbs-msg.error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
     </style>
 
     <div class="mbs-app">
         <div class="mbs-app-header">
             <h2>Gestione Prenotazioni</h2>
-            <a href="<?php echo wp_logout_url(get_permalink()); ?>" class="mbs-logout">Esci</a>
+            <div class="mbs-controls">
+                <button class="mbs-view-btn active" onclick="switchView('list')">📋 Elenco</button>
+                <button class="mbs-view-btn" onclick="switchView('calendar')">📅 Calendario</button>
+                <a href="<?php echo wp_logout_url(get_permalink()); ?>" class="mbs-logout" style="margin-left:10px; align-self:center;">Esci</a>
+            </div>
         </div>
 
         <?php echo $msg; ?>
 
-        <div class="mbs-actions-grid">
-            <div class="mbs-box">
-                <h3>➕ Aggiungi Manuale</h3>
-                <form method="POST">
-                    <input type="hidden" name="mbs_fe_action" value="manual_add">
-                    <div class="mbs-form-row"><input type="date" name="date" required></div>
-                    <div class="mbs-form-row"><input type="text" name="nome" placeholder="Nome Cliente" required></div>
-                    <div class="mbs-form-row">
-                        <select name="slot">
-                            <option value="morning">Mattina</option>
-                            <option value="afternoon">Pomeriggio</option>
-                            <option value="full">Giornata Intera</option>
-                        </select>
+        <!-- LIST VIEW -->
+        <div id="view-list" class="mbs-view-section active">
+            <!-- ACTIONS (ADD/BLOCK) - Spostati qui per nasconderli nel calendario -->
+            <div class="mbs-actions-grid">
+                <div class="mbs-box">
+                    <h3>➕ Aggiungi Manuale</h3>
+                    <form method="POST">
+                        <input type="hidden" name="mbs_fe_action" value="manual_add">
+                        <div class="mbs-form-row"><input type="date" name="date" required></div>
+                        <div class="mbs-form-row"><input type="text" name="nome" placeholder="Nome Cliente" required></div>
+                        <div class="mbs-form-row">
+                            <select name="slot">
+                                <option value="morning">Mattina</option>
+                                <option value="afternoon">Pomeriggio</option>
+                                <option value="full">Giornata Intera</option>
+                            </select>
+                        </div>
+                        <div class="mbs-form-row"><input type="number" name="prezzo" placeholder="Prezzo €" step="0.01"></div>
+                        <button class="mbs-btn primary">Aggiungi</button>
+                    </form>
+                </div>
+                <div class="mbs-box">
+                    <h3>⛔ Blocca Data</h3>
+                    <form method="POST">
+                        <input type="hidden" name="mbs_fe_action" value="block_date">
+                        <div class="mbs-form-row"><input type="date" name="block_date" required></div>
+                        <button class="mbs-btn danger">Blocca</button>
+                    </form>
+                </div>
+            </div>
+
+            <ul class="mbs-list">
+                <?php foreach($list_bookings as $p): ?>
+                <li class="mbs-item <?php echo $p->stato; ?>" id="row-<?php echo $p->id; ?>">
+                    <div class="mbs-item-header">
+                        <span class="mbs-date"><?php echo date('d/m/Y', strtotime($p->data_prenotazione)); ?></span>
+                        <span class="mbs-slot-badge"><?php echo $p->slot; ?></span>
                     </div>
-                    <div class="mbs-form-row"><input type="number" name="prezzo" placeholder="Prezzo €" step="0.01"></div>
-                    <button class="mbs-btn primary">Aggiungi</button>
-                </form>
+                    <div class="mbs-client">
+                        <strong><?php echo esc_html($p->nome_cliente); ?></strong><br>
+                        <small><?php echo ucfirst($p->stato); ?> • €<?php echo $p->prezzo; ?></small>
+                    </div>
+                    <div class="mbs-actions">
+                        <a href="tel:<?php echo esc_attr($p->telefono); ?>" class="mbs-action-btn btn-call">📞</a>
+                        <button class="mbs-action-btn btn-edit" 
+                            data-json='<?php echo json_encode($p); ?>'
+                            onclick="openEditModal(this)">✏️</button>
+                        <button class="mbs-action-btn btn-del" onclick="deleteBooking(<?php echo $p->id; ?>)">🗑️</button>
+                    </div>
+                </li>
+                <?php endforeach; ?>
+            </ul>
+            
+            <?php if ($total_pages > 1): ?>
+            <div style="margin-top:30px; text-align:center;">
+                <?php for($i=1; $i<=$total_pages; $i++): ?>
+                    <a href="?db_page=<?php echo $i; ?>" style="padding:8px 12px; margin:2px; border-radius:5px; text-decoration:none; <?php echo ($page==$i)?'background:#0073aa; color:#fff;':'background:#fff; border:1px solid #ddd; color:#333;'; ?>"><?php echo $i; ?></a>
+                <?php endfor; ?>
             </div>
-            <div class="mbs-box">
-                <h3>⛔ Blocca Data</h3>
-                <form method="POST">
-                    <input type="hidden" name="mbs_fe_action" value="block_date">
-                    <div class="mbs-form-row"><input type="date" name="block_date" required></div>
-                    <button class="mbs-btn danger">Blocca</button>
-                </form>
-            </div>
+            <?php endif; ?>
         </div>
 
-        <ul class="mbs-list">
-            <?php foreach($prenotazioni as $p): ?>
-            <li class="mbs-item" id="fe-row-<?php echo $p->id; ?>">
-                <div class="mbs-item-info">
-                    <div class="mbs-date"><?php echo date('d/m/Y', strtotime($p->data_prenotazione)); ?> <span class="mbs-slot"><?php echo $p->slot; ?></span></div>
-                    <span class="mbs-client"><?php echo esc_html($p->nome_cliente); ?></span>
-                    <span class="mbs-status <?php echo $p->stato; ?>"><?php echo $p->stato; ?></span>
-                </div>
-                <div class="mbs-item-actions">
-                    <button class="mbs-btn-sm mbs-btn-contact" onclick="alert('Tel: <?php echo esc_js($p->telefono); ?>\nEmail: <?php echo esc_js($p->email_cliente); ?>')">📞</button>
-                    <button class="mbs-btn-sm mbs-btn-edit" 
-                        data-id="<?php echo $p->id; ?>" 
-                        data-date="<?php echo $p->data_prenotazione; ?>" 
-                        data-slot="<?php echo $p->slot; ?>" 
-                        data-nome="<?php echo esc_attr($p->nome_cliente); ?>" 
-                        data-telefono="<?php echo esc_attr($p->telefono); ?>" 
-                        data-email="<?php echo esc_attr($p->email_cliente); ?>" 
-                        data-stato="<?php echo $p->stato; ?>"
-                        onclick="openFeEdit(this)">✏️</button>
-                    <a href="?del_id=<?php echo $p->id; ?>" class="mbs-btn-sm mbs-btn-del" onclick="return confirm('Eliminare?')">🗑️</a>
-                </div>
-            </li>
-            <?php endforeach; ?>
-        </ul>
-
-        <!-- Pagination -->
-        <?php if ($total_pages > 1): ?>
-        <div style="margin-top:20px; text-align:center;">
-            <?php for($i=1; $i<=$total_pages; $i++): ?>
-                <a href="?db_page=<?php echo $i; ?>" style="padding:5px 10px; border:1px solid #ccc; text-decoration:none; <?php echo ($page==$i)?'background:#0073aa; color:#fff;':''; ?>"><?php echo $i; ?></a>
-            <?php endfor; ?>
+        <!-- CALENDAR VIEW -->
+        <div id="view-calendar" class="mbs-view-section">
+            <div id="mbs-fullcalendar" style="background:#fff; padding:15px; border-radius:12px; min-height:650px; font-family:sans-serif;"></div>
         </div>
-        <?php endif; ?>
+
     </div>
 
     <!-- EDIT MODAL -->
-    <div id="mbs-fe-edit-modal" class="mbs-fe-modal">
-        <div class="mbs-fe-modal-content">
-            <span class="mbs-fe-close" onclick="document.getElementById('mbs-fe-edit-modal').classList.remove('active')">&times;</span>
-            <h3>Modifica Prenotazione</h3>
-            <form id="mbs-fe-edit-form">
-                <input type="hidden" id="fe-edit-id" name="booking_id">
-                <div class="mbs-form-row"><label>Data</label><input type="date" id="fe-edit-date" name="date" required></div>
-                <div class="mbs-form-row"><label>Nome</label><input type="text" id="fe-edit-nome" name="nome" required></div>
-                <div class="mbs-form-row"><label>Telefono</label><input type="tel" id="fe-edit-telefono" name="telefono"></div>
-                <div class="mbs-form-row"><label>Email</label><input type="email" id="fe-edit-email" name="email"></div>
+    <div id="mbs-edit-modal" class="mbs-modal-overlay">
+        <div class="mbs-modal">
+            <h3>Modifica <span class="mbs-close-modal" onclick="closeEditModal()">&times;</span></h3>
+            <form id="mbs-edit-form">
+                <input type="hidden" name="booking_id" id="edit-id">
+                <div class="mbs-form-row"><label>Data</label><input type="date" name="date" id="edit-date" required></div>
+                <div class="mbs-form-row"><label>Nome</label><input type="text" name="nome" id="edit-nome" required></div>
+                <div class="mbs-form-row"><label>Telefono</label><input type="tel" name="telefono" id="edit-tel"></div>
+                <div class="mbs-form-row"><label>Email</label><input type="email" name="email" id="edit-email"></div>
                 <div class="mbs-form-row"><label>Slot</label>
-                    <select id="fe-edit-slot" name="slot">
+                    <select name="slot" id="edit-slot">
                         <option value="morning">Mattina</option>
                         <option value="afternoon">Pomeriggio</option>
                         <option value="full">Giornata Intera</option>
                     </select>
                 </div>
                 <div class="mbs-form-row"><label>Stato</label>
-                    <select id="fe-edit-stato" name="stato">
+                    <select name="stato" id="edit-stato">
                         <option value="paid">Pagato</option>
-                        <option value="partially_paid">Parzialmente Pagato</option>
                         <option value="confirmed">Confermato</option>
                         <option value="pending">In Attesa</option>
                         <option value="blocked">Bloccato</option>
@@ -853,41 +962,109 @@ function mbs_frontend_dashboard_shortcode() {
     </div>
 
     <script>
-    function openFeEdit(btn) {
-        var d = btn.dataset;
-        document.getElementById('fe-edit-id').value = d.id;
-        document.getElementById('fe-edit-date').value = d.date;
-        document.getElementById('fe-edit-nome').value = d.nome;
-        document.getElementById('fe-edit-telefono').value = d.telefono;
-        document.getElementById('fe-edit-email').value = d.email;
-        document.getElementById('fe-edit-slot').value = d.slot;
-        document.getElementById('fe-edit-stato').value = d.stato;
-        document.getElementById('mbs-fe-edit-modal').classList.add('active');
+    var ajaxUrl = '<?php echo admin_url('admin-ajax.php'); ?>';
+    var nonce = '<?php echo wp_create_nonce("mbs_fe_nonce"); ?>';
+
+    function switchView(view) {
+        document.querySelectorAll('.mbs-view-section').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.mbs-view-btn').forEach(el => el.classList.remove('active'));
+        
+        document.getElementById('view-' + view).classList.add('active');
+        // Trova il bottone corretto (semplificazione)
+        event.target.classList.add('active');
+        
+        if(view === 'calendar' && !window.feCalendarInit) {
+            // Piccolo timeout per permettere al div di diventare visibile prima del render
+            setTimeout(initFeCalendar, 100);
+            window.feCalendarInit = true;
+        }
     }
 
-    jQuery(document).ready(function($){
-        $('#mbs-fe-edit-form').on('submit', function(e){
-            e.preventDefault();
-            var btn = $(this).find('button');
-            var originalText = btn.text();
-            btn.text('Salvataggio...').prop('disabled', true);
+    function initFeCalendar() {
+        var calendarEl = document.getElementById('mbs-fullcalendar');
+        var calendar = new FullCalendar.Calendar(calendarEl, {
+            initialView: 'dayGridMonth',
+            locale: 'it',
+            headerToolbar: {
+                left: 'prev,next today',
+                center: 'title',
+                right: 'dayGridMonth,timeGridWeek,timeGridDay'
+            },
+            events: <?php echo json_encode($fc_events); ?>,
+            eventClick: function(info) {
+                Swal.fire({
+                    title: info.event.title,
+                    text: 'Orario: ' + info.event.start.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) + ' - ' + info.event.end.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+                    icon: 'info'
+                });
+            }
+        });
+        calendar.render();
+    }
 
-            var data = $(this).serializeArray();
-            var payload = {
-                action: 'mbs_update_booking',
-                _ajax_nonce: '<?php echo wp_create_nonce("mbs_update_booking_nonce"); ?>'
-            };
-            $.each(data, function(i, field){ payload[field.name] = field.value; });
+    function deleteBooking(id) {
+        Swal.fire({
+            title: 'Sei sicuro?',
+            text: "Non potrai recuperare questa prenotazione!",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'Sì, elimina!',
+            cancelButtonText: 'Annulla'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                jQuery.post(ajaxUrl, {
+                    action: 'mbs_fe_delete_booking',
+                    security: nonce,
+                    id: id
+                }, function(res) {
+                    if(res.success) {
+                        Swal.fire('Eliminata!', 'La prenotazione è stata rimossa.', 'success');
+                        document.getElementById('row-' + id).remove();
+                    } else {
+                        Swal.fire('Errore', res.data || 'Errore server', 'error');
+                    }
+                });
+            }
+        });
+    }
 
-            $.post('<?php echo admin_url('admin-ajax.php'); ?>', payload, function(res){
-                btn.text(originalText).prop('disabled', false);
-                if(res.success) {
-                    document.getElementById('mbs-fe-edit-modal').classList.remove('active');
-                    location.reload(); // Ricarica per semplicità
-                } else {
-                    alert('Errore: ' + res.data);
-                }
-            });
+    function openEditModal(btn) {
+        var data = JSON.parse(btn.dataset.json);
+        document.getElementById('edit-id').value = data.id;
+        document.getElementById('edit-date').value = data.data_prenotazione;
+        document.getElementById('edit-nome').value = data.nome_cliente;
+        document.getElementById('edit-tel').value = data.telefono;
+        document.getElementById('edit-email').value = data.email_cliente;
+        document.getElementById('edit-slot').value = data.slot;
+        document.getElementById('edit-stato').value = data.stato;
+        
+        document.getElementById('mbs-edit-modal').classList.add('active');
+    }
+
+    function closeEditModal() {
+        document.getElementById('mbs-edit-modal').classList.remove('active');
+    }
+
+    jQuery('#mbs-edit-form').on('submit', function(e){
+        e.preventDefault();
+        var form = jQuery(this);
+        var btn = form.find('button');
+        btn.prop('disabled', true).text('Salvataggio...');
+        
+        jQuery.post(ajaxUrl, {
+            action: 'mbs_fe_update_booking',
+            security: nonce,
+            form_data: form.serialize()
+        }, function(res){
+            btn.prop('disabled', false).text('Salva Modifiche');
+            if(res.success) {
+                closeEditModal();
+                Swal.fire('Salvato!', 'Prenotazione aggiornata.', 'success').then(() => location.reload());
+            } else {
+                Swal.fire('Errore', res.data || 'Errore durante il salvataggio', 'error');
+            }
         });
     });
     </script>

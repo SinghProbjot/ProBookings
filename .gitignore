@@ -16,3 +16,13 @@ wp-content/debug.log
 #Ignora cartelle Node (se mai userai npm in futuro)
 
 node_modules/
+
+
+/vendor/
+*.zip
+.DS_Store
+Thumbs.db
+*.log
+*.json
+*.lock
+

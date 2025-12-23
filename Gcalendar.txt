@@ -35,7 +35,8 @@ Apri la cartella del tuo plugin sul tuo computer.
 Percorso: C:\Users\singh.probjot\Documents\GitHub\ProBookings\ProBookings
 Fai click destro in uno spazio vuoto della cartella e seleziona "Apri nel Terminale" (o "Open in Terminal" / "PowerShell").
 Nella finestra blu o nera che si apre, incolla questo comando e premi Invio: 
-    composer require google/apiclient:^2.0
+    composer require "google/apiclient:^2.0"
+    (Importante: includi le virgolette per evitare errori su PowerShell)
 Vedrai scorrere del testo. Composer sta scaricando i file da internet.
 Quando ha finito, guarda nella cartella del tuo plugin. Noterai una nuova cartella chiamata vendor.
 Dentro vendor ci sono migliaia di file: è tutta la logica di Google che serve al tuo plugin per funzionare.
@@ -49,4 +50,3 @@ Fai click destro sulla cartella ProBookings.
 Seleziona Invia a -> Cartella compressa (o "Compress to ZIP file").
 Verrà creato un file ProBookings.zip.
 Questo file .zip è il tuo prodotto. Contiene il tuo codice + la libreria Google (vendor). Puoi darlo al tuo cliente o venderlo, e funzionerà su qualsiasi sito WordPress senza che loro debbano installare nulla.
-
