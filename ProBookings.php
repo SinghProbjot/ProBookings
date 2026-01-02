@@ -346,6 +346,17 @@ function mbs_scripts() {
             font-size: 1.2rem !important; /* Ingrandisce il calendario */
         }
         .flatpickr-day.selected { background: var(--mbs-primary) !important; border-color: var(--mbs-primary) !important; }
+        
+        /* Header Mese/Anno più piccolo ed elegante */
+        .flatpickr-current-month {
+            font-size: 1rem !important; padding-top: 10px !important;
+        }
+        .flatpickr-current-month .flatpickr-monthDropdown-months {
+            font-size: 1.1rem !important; font-weight: 600 !important;
+        }
+        .flatpickr-current-month input.cur-year {
+            font-size: 1.1rem !important; font-weight: 300 !important;
+        }
 
         /* Stili Giorni Calendario */
         .flatpickr-day.day-full-booked {
@@ -671,7 +682,12 @@ function mbs_send_notifications($order_id) {
     $msg .= mbs_t('email_cancel_intro', $u_lang) . "\n";
     $msg .= $cancel_link;
 
-    wp_mail($booking->email_cliente, $subject, $msg);
+    // Imposta mittente personalizzato (Nome Sito <admin_email>)
+    $admin_email = get_option('admin_email');
+    $site_name = get_bloginfo('name');
+    $headers = array("From: $site_name <$admin_email>", "Content-Type: text/plain; charset=UTF-8");
+
+    wp_mail($booking->email_cliente, $subject, $msg, $headers);
     wp_mail(get_option('admin_email'), "New Booking #$order_id", "New booking from " . $booking->nome_cliente);
 }
 
