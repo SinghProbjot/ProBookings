@@ -54,6 +54,8 @@ function mbs_adm_t($key) {
             'msg_updated' => '✅ Prenotazione aggiornata con successo!',
             'error_overlap' => '⚠️ Errore: La data/slot selezionata è già occupata!',
             'gcal_title' => 'Integrazione Google Calendar',
+            'enable_gcal' => 'Abilita Google Calendar',
+            'enable_gcal_desc' => 'Attiva la sincronizzazione automatica con Google Calendar.',
             'gcal_client_id' => 'Google Client ID',
             'gcal_client_secret' => 'Google Client Secret',
             'gcal_calendar_id' => 'ID Calendario (es. primary)',
@@ -108,6 +110,8 @@ function mbs_adm_t($key) {
             'msg_updated' => '✅ Booking updated successfully!',
             'error_overlap' => '⚠️ Error: The selected date/slot is already booked!',
             'gcal_title' => 'Google Calendar Integration',
+            'enable_gcal' => 'Enable Google Calendar',
+            'enable_gcal_desc' => 'Enable automatic synchronization with Google Calendar.',
             'gcal_client_id' => 'Google Client ID',
             'gcal_client_secret' => 'Google Client Secret',
             'gcal_calendar_id' => 'Calendar ID (e.g. primary)',
@@ -620,6 +624,7 @@ function mbs_page_settings() {
         update_option('mbs_enable_payments', isset($_POST['mbs_enable_payments']) ? 1 : 0);
         update_option('mbs_enable_pay_on_site', isset($_POST['mbs_enable_pay_on_site']) ? 1 : 0);
         update_option('mbs_hide_prices', isset($_POST['mbs_hide_prices']) ? 1 : 0);
+        update_option('mbs_enable_gcal', isset($_POST['mbs_enable_gcal']) ? 1 : 0);
         update_option('mbs_theme', sanitize_text_field($_POST['mbs_theme']));
         update_option('mbs_price_morning', floatval($_POST['mbs_price_morning']));
         update_option('mbs_price_afternoon', floatval($_POST['mbs_price_afternoon']));
@@ -707,6 +712,13 @@ function mbs_page_settings() {
                         <code style="background:#eee; padding:5px; display:block; margin-top:5px;"><?php echo admin_url('admin.php?page=mbs-settings'); ?></code>
                     </div>
                 </th></tr>
+                <tr>
+                    <th><?php echo mbs_adm_t('enable_gcal'); ?></th>
+                    <td>
+                        <input type="checkbox" name="mbs_enable_gcal" value="1" <?php checked(get_option('mbs_enable_gcal', 0), 1); ?>>
+                        <p class="description"><?php echo mbs_adm_t('enable_gcal_desc'); ?></p>
+                    </td>
+                </tr>
                 <tr><th><?php echo mbs_adm_t('gcal_client_id'); ?></th><td><input type="text" name="mbs_gcal_client_id" value="<?php echo get_option('mbs_gcal_client_id'); ?>" class="regular-text"></td></tr>
                 <tr><th><?php echo mbs_adm_t('gcal_client_secret'); ?></th><td><input type="text" name="mbs_gcal_client_secret" value="<?php echo get_option('mbs_gcal_client_secret'); ?>" class="regular-text"></td></tr>
                 <tr><th><?php echo mbs_adm_t('gcal_calendar_id'); ?></th><td><input type="text" name="mbs_gcal_calendar_id" value="<?php echo get_option('mbs_gcal_calendar_id', 'primary'); ?>" class="regular-text"> <p class="description">Usa "primary" per il calendario principale.</p></td></tr>

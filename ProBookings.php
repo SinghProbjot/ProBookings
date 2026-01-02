@@ -14,15 +14,26 @@ require_once plugin_dir_path(__FILE__) . 'cancellation-logic.php';
 require_once plugin_dir_path(__FILE__) . 'google-calendar-integration.php';
 
 // Carica librerie esterne (es. Google Client) se presenti (per distribuzione plugin)
-if (file_exists(plugin_dir_path(__FILE__) . 'vendor/autoload.php')) {
-    require_once plugin_dir_path(__FILE__) . 'vendor/autoload.php';
+$vendor_path = plugin_dir_path(__FILE__) . 'vendor/autoload.php';
+$vendor_exists = file_exists($vendor_path);
+$gcal_enabled = get_option('mbs_enable_gcal', 0); // Default: Disattivato (0)
+
+if ($vendor_exists) {
+    require_once $vendor_path;
+}
+
+if ($vendor_exists && $gcal_enabled) {
+    define('MBS_GCAL_ACTIVE', true);
 } else {
-    // Avviso Admin se mancano le librerie
-    add_action('admin_notices', function() {
-        if (current_user_can('manage_options')) {
-            echo '<div class="notice notice-error"><p>⚠️ <b>ProBookings:</b> Librerie Google mancanti. Esegui <code>composer require google/apiclient:^2.0</code> nella cartella del plugin o carica la cartella <code>vendor</code>.</p></div>';
-        }
-    });
+    define('MBS_GCAL_ACTIVE', false);
+    // Avviso Admin se mancano le librerie MA l'opzione è attiva nelle impostazioni
+    if ($gcal_enabled && !$vendor_exists) {
+        add_action('admin_notices', function() {
+            if (current_user_can('manage_options')) {
+                echo '<div class="notice notice-error"><p>⚠️ <b>ProBookings:</b> Hai attivato Google Calendar ma mancano le librerie. Esegui <code>composer require google/apiclient:^2.0</code> o disattiva l\'opzione.</p></div>';
+            }
+        });
+    }
 }
 
 // ======================================================
@@ -182,7 +193,13 @@ function mbs_scripts() {
     $theme = get_option('mbs_theme', 'default');
     
     // Variabili base
-    $primary_color = ($theme == 'sea') ? '#0088cc' : '#0073aa'; 
+    if ($theme == 'sea') {
+        $primary_color = '#0088cc';
+    } elseif ($theme == 'elegant') {
+        $primary_color = '#c5a059'; // Gold/Beige Lusso
+    } else {
+        $primary_color = '#0073aa';
+    }
 
     wp_localize_script('mbs-js', 'mbs_vars', array(
         'ajax_url' => admin_url('admin-ajax.php'),
@@ -240,6 +257,49 @@ function mbs_scripts() {
         .mbs-header p { 
             font-size: 1.2rem; color: rgba(255,255,255,0.95) !important; 
             font-weight: 500; text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+        }
+        .mbs-layout { padding: 0 30px 40px; }
+        ";
+    } elseif ($theme == 'elegant') {
+        // TEMA ELEGANT (LUSSO - White & Beige)
+        $css_theme = "
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap');
+        
+        .mbs-header { 
+            text-align: center; 
+            padding: 80px 20px; 
+            background: radial-gradient(circle at center, #fffbf2 0%, #f2e6d8 100%);
+            color: #5a4a42;
+            border-bottom: 1px solid #dccbb5;
+            margin-bottom: 30px;
+        }
+        .mbs-header h2 { 
+            font-family: 'Playfair Display', serif;
+            font-size: 3rem; margin: 0 0 10px; color: #8a6d3b !important; 
+            letter-spacing: 1px;
+        }
+        .mbs-header p { 
+            font-family: 'Playfair Display', serif;
+            font-size: 1.3rem; color: #a38b68 !important; font-style: italic;
+        }
+        .mbs-wrapper {
+            box-shadow: 0 20px 50px rgba(197, 160, 89, 0.15);
+            border: 1px solid #f0e6da;
+        }
+        
+        .mbs-card:hover {
+            border-color: #c5a059;
+            box-shadow: 0 5px 15px rgba(197, 160, 89, 0.1);
+        }
+        .mbs-card:has(input:checked) {
+            background: #fffcf5;
+            border-color: #c5a059;
+        }
+        .mbs-submit-btn {
+            background: linear-gradient(to right, #c5a059, #b08d45);
+            font-family: 'Playfair Display', serif;
+            letter-spacing: 1px;
+            text-transform: uppercase;
         }
         .mbs-layout { padding: 0 30px 40px; }
         ";
@@ -536,7 +596,7 @@ function mbs_ajax_create_checkout_session() {
     if (!$enable_payments) {
         $wpdb->update($table, array('stato' => 'confirmed'), array('id' => $order_id));
         mbs_send_notifications($order_id);
-        mbs_google_calendar_add_event($order_id); // Aggiungi a Google Calendar
+        if (MBS_GCAL_ACTIVE) mbs_google_calendar_add_event($order_id); // Aggiungi a Google Calendar
         wp_send_json_success(array('message' => mbs_t('success_msg', $lang)));
         return;
     }
@@ -545,7 +605,7 @@ function mbs_ajax_create_checkout_session() {
     if ($enable_payments && $payment_method === 'cash') {
         $wpdb->update($table, array('stato' => 'confirmed'), array('id' => $order_id));
         mbs_send_notifications($order_id);
-        mbs_google_calendar_add_event($order_id); // Aggiungi a Google Calendar
+        if (MBS_GCAL_ACTIVE) mbs_google_calendar_add_event($order_id); // Aggiungi a Google Calendar
         wp_send_json_success(array('message' => mbs_t('success_msg', $lang)));
         return;
     }
@@ -625,7 +685,7 @@ function mbs_verify_payment() {
         if ($booking && $booking->stato != 'paid') {
             $wpdb->update($table, array('stato' => 'paid'), array('id' => $order_id));
             mbs_send_notifications($order_id);
-            mbs_google_calendar_add_event($order_id); // Aggiungi a Google Calendar
+            if (MBS_GCAL_ACTIVE) mbs_google_calendar_add_event($order_id); // Aggiungi a Google Calendar
             $u_lang = $booking->lang;
             
             wp_redirect(remove_query_arg(array('mbs_payment', 'order_id'), get_site_url()) . '?mbs_msg=success&lang='.$u_lang);
